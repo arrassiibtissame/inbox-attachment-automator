@@ -1,0 +1,21 @@
+
+# Secrets et authentification Gmail
+client_secret.json
+credentials.json
+token.json
+token_cabinet.json
+
+# Bases de données et sauvegardes
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Environnement Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Fichiers de sauvegarde du code
+download_attachments_backup*.py
