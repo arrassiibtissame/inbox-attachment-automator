@@ -105,11 +105,13 @@ def was_downloaded(message_id, part_key):
     return False
 
 
+
 def register_download(message_id, part_key, filename, file_hash, saved_path):
+    """Crée ou actualise l'historique d'une pièce jointe téléchargée."""
     with sqlite3.connect(DATABASE_FILE) as connection:
         connection.execute(
             """
-            INSERT OR IGNORE INTO downloads (
+            INSERT INTO downloads (
                 message_id,
                 part_key,
                 filename,
@@ -118,6 +120,11 @@ def register_download(message_id, part_key, filename, file_hash, saved_path):
                 downloaded_at
             )
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(message_id, part_key) DO UPDATE SET
+                filename = excluded.filename,
+                file_hash = excluded.file_hash,
+                saved_path = excluded.saved_path,
+                downloaded_at = excluded.downloaded_at
             """,
             (
                 message_id,
@@ -128,6 +135,7 @@ def register_download(message_id, part_key, filename, file_hash, saved_path):
                 datetime.now(TIMEZONE).isoformat(),
             ),
         )
+
         connection.commit()
         # ============================================================
 # AUTHENTIFICATION GMAIL
