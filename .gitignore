@@ -19,3 +19,18 @@ __pycache__/
 
 # Fichiers de sauvegarde du code
 download_attachments_backup*.py
+
+# Journaux et fichiers temporaires
+*.log
+*.tmp
+*.bak
+
+# Documents téléchargés et données locales
+downloads/
+documents/
+Cabinet-Documents-Test/
+
+# Configuration locale
+.env
+.env.*
+!.env.example
