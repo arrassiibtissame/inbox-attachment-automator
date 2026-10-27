@@ -1,4 +1,4 @@
-import base64
+﻿import base64
 import hashlib
 import logging
 import mimetypes
@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from contextlib import closing
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -32,7 +33,7 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 TIMEZONE = ZoneInfo("Africa/Casablanca")
 
-# Reste en mode test : seuls les sujets de test sont traités.
+# Reste en mode test : seuls les sujets de test sont traitÃ©s.
 TEST_MODE = True
 
 TEST_SUBJECTS = [
@@ -64,34 +65,34 @@ logging.basicConfig(
 
 logger = logging.getLogger("FIDOMEK_ONE")
 # ============================================================
-# BASE DE DONNÉES
+# BASE DE DONNÃ‰ES
 # ============================================================
 
 def initialize_database():
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(DATABASE_FILE) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS downloads (
-                message_id TEXT NOT NULL,
-                part_key TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                file_hash TEXT NOT NULL,
-                saved_path TEXT NOT NULL,
-                downloaded_at TEXT NOT NULL,
-                PRIMARY KEY (message_id, part_key)
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
+        with connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS downloads (
+                    message_id TEXT NOT NULL,
+                    part_key TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    file_hash TEXT NOT NULL,
+                    saved_path TEXT NOT NULL,
+                    downloaded_at TEXT NOT NULL,
+                    PRIMARY KEY (message_id, part_key)
+                )
+                """
             )
-            """
-        )
-        connection.commit()
 
 
 def was_downloaded(message_id, part_key):
-    with sqlite3.connect(DATABASE_FILE) as connection:
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
         cursor = connection.execute(
             """
-            SELECT saved_path
+            SELECT saved_path, file_hash
             FROM downloads
             WHERE message_id = ? AND part_key = ?
             """,
@@ -99,16 +100,46 @@ def was_downloaded(message_id, part_key):
         )
         row = cursor.fetchone()
 
-    if row and row[0] and Path(row[0]).exists():
-        return True
+    if not row or not row[0] or not row[1]:
+        return False
 
-    return False
+    saved_path = Path(row[0])
+
+    if not saved_path.is_file():
+        return False
+
+    try:
+        current_hash = hashlib.sha256(saved_path.read_bytes()).hexdigest()
+    except OSError:
+        return False
+
+    return current_hash == row[1]
+
+
+def get_registered_download(message_id, part_key):
+    """Retourne le chemin et le hash du fichier associÃ© Ã  la piÃ¨ce jointe."""
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
+        cursor = connection.execute(
+            """
+            SELECT saved_path, file_hash
+            FROM downloads
+            WHERE message_id = ? AND part_key = ?
+            """,
+            (message_id, part_key),
+        )
+        row = cursor.fetchone()
+
+    if not row or not row[0] or not row[1]:
+        return None
+
+    return Path(row[0]), row[1]
 
 
 
 def register_download(message_id, part_key, filename, file_hash, saved_path):
-    """Crée ou actualise l'historique d'une pièce jointe téléchargée."""
-    with sqlite3.connect(DATABASE_FILE) as connection:
+    """CrÃ©e ou actualise l'historique d'une piÃ¨ce jointe tÃ©lÃ©chargÃ©e."""
+
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
         connection.execute(
             """
             INSERT INTO downloads (
@@ -135,8 +166,11 @@ def register_download(message_id, part_key, filename, file_hash, saved_path):
                 datetime.now(TIMEZONE).isoformat(),
             ),
         )
-
         connection.commit()
+
+
+
+
         # ============================================================
 # AUTHENTIFICATION GMAIL
 # ============================================================
@@ -175,43 +209,13 @@ def authenticate_gmail():
 
     profile = service.users().getProfile(userId="me").execute()
     logger.info(
-        "Compte Gmail utilisé : %s",
+        "Compte Gmail utilisÃ© : %s",
         profile.get("emailAddress"),
     )
-    logger.info("Authentification Gmail réussie.")
+    logger.info("Authentification Gmail rÃ©ussie.")
 
     return service
 
-    if TOKEN_FILE.exists():
-        credentials = Credentials.from_authorized_user_file(
-            str(TOKEN_FILE),
-            SCOPES,
-        )
-
-    if credentials and credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
-
-    if not credentials or not credentials.valid:
-        if not CLIENT_SECRET_FILE.exists():
-            raise FileNotFoundError(
-                f"Fichier OAuth introuvable : {CLIENT_SECRET_FILE}"
-            )
-
-        flow = InstalledAppFlow.from_client_secrets_file(
-            str(CLIENT_SECRET_FILE),
-            SCOPES,
-        )
-
-        credentials = flow.run_local_server(port=0)
-
-        TOKEN_FILE.write_text(
-            credentials.to_json(),
-            encoding="utf-8",
-        )
-
-    service = build("gmail", "v1", credentials=credentials)
-    logger.info("Authentification Gmail réussie.")
-    return service
 
 
 # ============================================================
@@ -248,7 +252,7 @@ def build_gmail_query():
 # ============================================================
 
 def decode_attachment(data):
-    """Décode le contenu d'une pièce jointe Gmail."""
+    """DÃ©code le contenu d'une piÃ¨ce jointe Gmail."""
     if not data:
         return b""
 
@@ -268,7 +272,7 @@ def sanitize_filename(filename):
 
 
 def unique_file_path(directory, filename, unique_prefix):
-    """Évite d'écraser un fichier existant."""
+    """Ã‰vite d'Ã©craser un fichier existant."""
     safe_name = sanitize_filename(filename)
     path = directory / safe_name
 
@@ -288,15 +292,15 @@ def unique_file_path(directory, filename, unique_prefix):
 
 
 def is_valid_file(filename, content):
-    """Vérifications simples avant l'enregistrement."""
+    """VÃ©rifications simples avant l'enregistrement."""
     extension = Path(filename).suffix.lower()
 
     if extension not in ALLOWED_EXTENSIONS:
-        logger.warning("Extension non autorisée : %s", filename)
+        logger.warning("Extension non autorisÃ©e : %s", filename)
         return False
 
     if not content:
-        logger.warning("Fichier vide rejeté : %s", filename)
+        logger.warning("Fichier vide rejetÃ© : %s", filename)
         return False
 
     if len(content) > MAX_FILE_SIZE:
@@ -309,7 +313,7 @@ def is_valid_file(filename, content):
 
     return True
 # ============================================================
-# TRAITEMENT DES PIÈCES JOINTES
+# TRAITEMENT DES PIÃˆCES JOINTES
 # ============================================================
 
 def process_message(service, message_id):
@@ -362,56 +366,121 @@ def process_message(service, message_id):
                         content = decode_attachment(data)
                     except Exception:
                         logger.exception(
-                            "Impossible de décoder la pièce jointe : %s",
+                            "Impossible de dÃ©coder la piÃ¨ce jointe : %s",
                             filename,
                         )
                         content = None
 
+
                     if content is not None and is_valid_file(filename, content):
+                        registered_download = get_registered_download(
+                            message_id, part_key
+                        )
+
                         if was_downloaded(message_id, part_key):
-                            logger.info("Déjà téléchargé : %s", filename)
+                            logger.info("DÃ©jÃ  tÃ©lÃ©chargÃ© : %s", filename)
                         else:
                             file_hash = hashlib.sha256(content).hexdigest()
                             unique_prefix = hashlib.sha256(
                                 f"{message_id}:{part_key}".encode("utf-8")
                             ).hexdigest()[:8]
 
-                            destination = unique_file_path(
-                                DOWNLOAD_DIR,
-                                filename,
-                                unique_prefix,
+                            DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+                            safe_name = sanitize_filename(filename)
+                            base_path = DOWNLOAD_DIR / safe_name
+                            recovered_path = (
+                                DOWNLOAD_DIR
+                                / f"{base_path.stem}_{unique_prefix}"
+                                f"{base_path.suffix}"
                             )
+
+                            destination = None
+
+
+                            # RÃ©parer le fichier dÃ©jÃ  associÃ© Ã  cette piÃ¨ce jointe,
+                            # uniquement si son chemin est dans le dossier prÃ©vu.
+                            if registered_download is not None:
+                                registered_path, registered_hash = registered_download
+
+                                try:
+                                    registered_path = registered_path.resolve()
+                                    download_root = DOWNLOAD_DIR.resolve()
+
+                                    if (
+                                        registered_path.parent == download_root
+                                        and registered_path.is_file()
+                                    ):
+                                        current_hash = hashlib.sha256(
+                                            registered_path.read_bytes()
+                                        ).hexdigest()
+
+                                        if current_hash != file_hash:
+                                            destination = registered_path
+
+                                except OSError:
+                                    logger.exception(
+                                        "Impossible de vÃ©rifier le fichier enregistrÃ©."
+                                    )
+
+
+                            # RÃ©utiliser un fichier intact laissÃ© par un essai prÃ©cÃ©dent.
+                            if destination is None:
+                                for candidate in (base_path, recovered_path):
+                                    if candidate.is_file():
+                                        try:
+                                            existing_hash = hashlib.sha256(
+                                                candidate.read_bytes()
+                                            ).hexdigest()
+                                        except OSError:
+                                            logger.exception(
+                                                "Impossible de vÃ©rifier le fichier : %s",
+                                                candidate,
+                                            )
+                                            continue
+
+                                        if existing_hash == file_hash:
+                                            destination = candidate
+                                            break
+
+                            if destination is None:
+                                destination = unique_file_path(
+                                    DOWNLOAD_DIR,
+                                    filename,
+                                    unique_prefix,
+                                )
 
                             try:
                                 destination.write_bytes(content)
                                 register_download(
                                     message_id,
                                     part_key,
-                                    sanitize_filename(filename),
+                                    safe_name,
                                     file_hash,
                                     destination,
                                 )
                                 logger.info(
-                                    "Téléchargé : %s",
+                                    "TÃ©lÃ©chargÃ© : %s",
                                     destination.name,
                                 )
-                            except OSError:
+                            except (OSError, sqlite3.Error):
                                 logger.exception(
-                                    "Erreur d'enregistrement : %s",
+                                    "Erreur d'enregistrement du fichier "
+                                    "ou de l'historique SQLite : %s",
                                     filename,
                                 )
+                                print("DEBUG erreur d'enregistrement")
 
             nested_parts = part.get("parts", [])
             if nested_parts:
                 process_parts(nested_parts, part_key)
-
+# Traiter les piÃ¨ces jointes habituelles contenues dans "parts".
     process_parts(payload.get("parts", []))
-
-    # Certains e-mails contiennent une seule pièce jointe directement.
+    # Certains e-mails contiennent une seule piÃ¨ce jointe directement.
     if payload.get("filename"):
         process_parts([payload])
     # ============================================================
-# VÉRIFICATION PÉRIODIQUE
+# VÃ‰RIFICATION PÃ‰RIODIQUE
 # ============================================================
 
 def check_emails(service):
@@ -454,35 +523,35 @@ def check_emails(service):
             break
 
     logger.info(
-        "Vérification terminée. Messages traités : %s",
+        "VÃ©rification terminÃ©e. Messages traitÃ©s : %s",
         processed_count,
     )
 
 
 # ============================================================
-# POINT D'ENTRÉE
+# POINT D'ENTRÃ‰E
 # ============================================================
 
 def main():
-    logger.info("FIDOMEK ONE démarre.")
+    logger.info("FIDOMEK ONE dÃ©marre.")
     logger.info("Mode test : %s", TEST_MODE)
     logger.info("Dossier de destination : %s", DOWNLOAD_DIR)
-    logger.info("Base de données : %s", DATABASE_FILE)
+    logger.info("Base de donnÃ©es : %s", DATABASE_FILE)
 
     initialize_database()
     service = authenticate_gmail()
-  
+
 
     while True:
         try:
             check_emails(service)
         except HttpError:
-            logger.exception("Erreur lors de la vérification Gmail.")
+            logger.exception("Erreur lors de la vÃ©rification Gmail.")
         except Exception:
-            logger.exception("Erreur inattendue pendant la vérification.")
+            logger.exception("Erreur inattendue pendant la vÃ©rification.")
 
         logger.info(
-            "Prochaine vérification dans %s secondes.",
+            "Prochaine vÃ©rification dans %s secondes.",
             CHECK_INTERVAL_SECONDS,
         )
         time.sleep(CHECK_INTERVAL_SECONDS)
