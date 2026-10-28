@@ -1,5 +1,4 @@
-﻿
-import base64
+﻿import base64
 import hashlib
 import logging
 import re
@@ -21,7 +20,7 @@ from googleapiclient.errors import HttpError
 # CONFIGURATION
 # ============================================================
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 CLIENT_SECRET_FILE = BASE_DIR / "client_secret.json"
 TOKEN_FILE = BASE_DIR / "token_cabinet.json"
@@ -32,8 +31,8 @@ DOWNLOAD_DIR = Path.home() / "Documents" / "Cabinet-Documents-Test"
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 TIMEZONE = ZoneInfo("Africa/Casablanca")
 
-# IMPORTANT : conserver le mode test pendant le développement.
-TEST_MODE = True
+# IMPORTANT : ne pas lancer le traitement réel pendant les tests.
+TEST_MODE = False
 
 TEST_SUBJECTS = [
     "FIDOMEK_TEST",
@@ -110,9 +109,7 @@ def was_downloaded(message_id, part_key):
         return False
 
     try:
-        current_hash = hashlib.sha256(
-            saved_path.read_bytes()
-        ).hexdigest()
+        current_hash = hashlib.sha256(saved_path.read_bytes()).hexdigest()
     except OSError:
         return False
 
@@ -136,6 +133,26 @@ def get_registered_download(message_id, part_key):
         return None
 
     return Path(row[0]), row[1]
+
+
+def can_restore_registered_file(saved_path, expected_hash):
+    """
+    Autorise la restauration si tous les enregistrements qui pointent
+    vers ce chemin attendent le même contenu.
+    """
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
+        cursor = connection.execute(
+            """
+            SELECT COUNT(*),
+                   SUM(CASE WHEN file_hash = ? THEN 1 ELSE 0 END)
+            FROM downloads
+            WHERE saved_path = ?
+            """,
+            (expected_hash, str(saved_path)),
+        )
+        total, matching = cursor.fetchone()
+
+    return total > 0 and matching == total
 
 
 def register_download(
@@ -210,7 +227,6 @@ def authenticate_gmail():
         )
 
     service = build("gmail", "v1", credentials=credentials)
-
     profile = service.users().getProfile(userId="me").execute()
 
     logger.info(
@@ -344,9 +360,7 @@ def find_existing_file(directory, filename, expected_hash):
             continue
 
         try:
-            current_hash = hashlib.sha256(
-                candidate.read_bytes()
-            ).hexdigest()
+            current_hash = hashlib.sha256(candidate.read_bytes()).hexdigest()
         except OSError:
             logger.warning(
                 "Impossible de vérifier le fichier : %s",
@@ -427,35 +441,24 @@ def process_message(service, message_id):
                         )
                         content = None
 
-                    if content is not None and is_valid_file(
-                        filename, content
-                    ):
+                    if content is not None and is_valid_file(filename, content):
                         file_hash = hashlib.sha256(content).hexdigest()
 
-                        # Si l'historique et le fichier sont valides,
-                        # aucun nouveau téléchargement n'est nécessaire.
                         if was_downloaded(message_id, part_key):
-                            logger.info(
-                                "Déjà téléchargé : %s",
-                                filename,
-                            )
+                            logger.info("Déjà téléchargé : %s", filename)
                         else:
                             safe_name = sanitize_filename(filename)
-
                             unique_prefix = hashlib.sha256(
                                 f"{message_id}:{part_key}".encode("utf-8")
                             ).hexdigest()[:8]
 
-                            DOWNLOAD_DIR.mkdir(
-                                parents=True,
-                                exist_ok=True,
-                            )
-
+                            DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
                             destination = None
 
-                            # 1. Réutiliser le chemin déjà enregistré
-                            # s'il se trouve dans le dossier autorisé
-                            # et contient exactement le bon document.
+                            # 1. Récupérer le chemin déjà enregistré si
+                            # tous les enregistrements associés attendent
+                            # le même contenu. Cela restaure un fichier
+                            # modifié ou supprimé sans créer de doublon.
                             registered_download = get_registered_download(
                                 message_id,
                                 part_key,
@@ -463,6 +466,7 @@ def process_message(service, message_id):
 
                             if registered_download is not None:
                                 registered_path, _ = registered_download
+                                original_registered_path = registered_path
 
                                 try:
                                     registered_path = registered_path.resolve()
@@ -470,26 +474,23 @@ def process_message(service, message_id):
 
                                     if (
                                         registered_path.parent == download_root
-                                        and registered_path.is_file()
+                                        and can_restore_registered_file(
+                                            original_registered_path,
+                                            file_hash,
+                                        )
                                     ):
-                                        existing_hash = hashlib.sha256(
-                                            registered_path.read_bytes()
-                                        ).hexdigest()
+                                        destination = registered_path
 
-                                        if existing_hash == file_hash:
-                                            destination = registered_path
-
-                                except OSError:
+                                except (OSError, sqlite3.Error):
                                     logger.warning(
                                         "Impossible de vérifier le fichier "
                                         "enregistré : %s",
-                                        registered_path,
+                                        original_registered_path,
                                         exc_info=True,
                                     )
 
-                            # 2. Rechercher un fichier déjà présent
-                            # avec le même contenu. Cela permet aussi
-                            # de reprendre après un échec SQLite.
+                            # 2. Rechercher un autre fichier déjà présent
+                            # qui possède exactement le même contenu.
                             if destination is None:
                                 destination = find_existing_file(
                                     DOWNLOAD_DIR,
@@ -497,9 +498,8 @@ def process_message(service, message_id):
                                     file_hash,
                                 )
 
-                            # 3. Si aucun fichier identique n'existe,
-                            # choisir un nouveau chemin sans écraser
-                            # les documents déjà présents.
+                            # 3. Aucun fichier identique : choisir un chemin
+                            # libre sans écraser un document différent.
                             if destination is None:
                                 destination = unique_file_path(
                                     DOWNLOAD_DIR,
@@ -507,8 +507,6 @@ def process_message(service, message_id):
                                     unique_prefix,
                                 )
 
-                            # Vérifier une dernière fois le contenu
-                            # avant de décider s'il faut écrire le fichier.
                             file_already_exists = False
 
                             if destination.is_file():
@@ -516,7 +514,6 @@ def process_message(service, message_id):
                                     existing_hash = hashlib.sha256(
                                         destination.read_bytes()
                                     ).hexdigest()
-
                                     file_already_exists = (
                                         existing_hash == file_hash
                                     )
@@ -527,7 +524,8 @@ def process_message(service, message_id):
                                     )
                                     continue
 
-                            # Ne pas réécrire un fichier intact.
+                            # Écrire le contenu reçu si le fichier est absent
+                            # ou si son contenu est différent.
                             if not file_already_exists:
                                 try:
                                     destination.write_bytes(content)
@@ -538,8 +536,7 @@ def process_message(service, message_id):
                                     )
                                     continue
 
-                            # L'historique est enregistré même si le
-                            # fichier existait déjà avant ce passage.
+                            # Enregistrer l'historique SQLite.
                             try:
                                 register_download(
                                     message_id,
@@ -550,8 +547,8 @@ def process_message(service, message_id):
                                 )
                             except sqlite3.Error:
                                 logger.exception(
-                                    "Le fichier existe, mais son historique "
-                                    "SQLite n'a pas été enregistré : %s",
+                                    "Erreur d'enregistrement dans "
+                                    "l'historique SQLite : %s",
                                     destination,
                                 )
                                 continue
@@ -562,17 +559,13 @@ def process_message(service, message_id):
                                     destination.name,
                                 )
                             else:
-                                logger.info(
-                                    "Téléchargé : %s",
-                                    destination.name,
-                                )
+                                logger.info("Téléchargé : %s", destination.name)
 
             # Traiter aussi les pièces jointes des sous-parties MIME.
             nested_parts = part.get("parts", [])
             if nested_parts:
                 process_parts(nested_parts, part_key)
 
-    # Traiter les pièces jointes contenues dans "parts".
     process_parts(payload.get("parts", []))
 
     # Traiter également un éventuel fichier directement dans le payload.
@@ -620,7 +613,6 @@ def check_emails(service):
                 )
 
         page_token = response.get("nextPageToken")
-
         if not page_token:
             break
 
