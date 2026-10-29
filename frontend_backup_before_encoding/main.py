@@ -11,17 +11,19 @@ from frontend.ui.styles.theme import configure_theme
 
 
 class FidomekOneApp(ctk.CTk):
-    """FenÃªtre principale de FIDOMEK ONE."""
+    """Fenêtre principale de FIDOMEK ONE."""
 
     def __init__(self):
         configure_theme()
         super().__init__()
 
         self.title("FIDOMEK ONE | Gestion des documents")
-        self.geometry("1200x750")
+        self.geometry("1440x900")
         self.minsize(1000, 650)
-        self.configure(fg_color=colors.BACKGROUND)
+        self.configure(fg_color="#F5F7FA")
 
+        # Grille principale sans marges extérieures
+        self.grid_columnconfigure(0, weight=0, minsize=256)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -33,17 +35,22 @@ class FidomekOneApp(ctk.CTk):
             row=0,
             column=0,
             sticky="nsew",
+            padx=0,
+            pady=0,
         )
 
         self.content = ctk.CTkFrame(
             self,
-            fg_color=colors.BACKGROUND,
+            fg_color="#F5F7FA",
             corner_radius=0,
+            border_width=0,
         )
         self.content.grid(
             row=0,
             column=1,
             sticky="nsew",
+            padx=0,
+            pady=0,
         )
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
@@ -59,10 +66,9 @@ class FidomekOneApp(ctk.CTk):
         self.show_page("dashboard")
 
     def show_page(self, page_name):
-        """Affiche la page choisie dans la barre latÃ©rale."""
+        """Affiche la page sélectionnée."""
 
         page_class = self.pages.get(page_name)
-
         if page_class is None:
             return
 
@@ -82,4 +88,3 @@ class FidomekOneApp(ctk.CTk):
 if __name__ == "__main__":
     app = FidomekOneApp()
     app.mainloop()
-

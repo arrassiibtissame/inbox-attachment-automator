@@ -1,38 +1,47 @@
 
 # Palette officielle de FIDOMEK ONE
+# Design hybride : navigation sombre et contenu clair
 
-# Couleurs principales
-PRIMARY = "#0878D1"          # Bleu du logo
-PRIMARY_HOVER = "#0667B5"
-PRIMARY_LIGHT = "#E8F2FF"
+# Navigation et couleurs principales
+PRIMARY = "#087F8C"
+PRIMARY_HOVER = "#066B75"
+PRIMARY_LIGHT = "#DDF5F2"
 
-SECONDARY = "#12396B"        # Bleu profond
-ACCENT = "#00B8B0"            # Turquoise du logo
-ACCENT_LIGHT = "#E4F9F7"
+# Sidebar : bleu nuit
+SECONDARY = "#14263F"
+SIDEBAR_BG = "#14263F"
+SIDEBAR_HOVER = "#243751"
+SIDEBAR_ACTIVE = "#29465E"
+SIDEBAR_TEXT = "#E7EEF7"
+SIDEBAR_TEXT_MUTED = "#A9B8CC"
+
+# Accent turquoise
+ACCENT = "#12B8A6"
+ACCENT_LIGHT = "#E0F7F3"
 
 # Arrière-plans et surfaces
-BACKGROUND = "#F5F8FC"
+BACKGROUND = "#F4F7FB"
 SURFACE = "#FFFFFF"
-SURFACE_ALT = "#F0F5FB"
+SURFACE_ALT = "#EDF2F7"
 
 # Textes
-TEXT_PRIMARY = "#17345D"
-TEXT_SECONDARY = "#687B95"
-TEXT_MUTED = "#91A0B5"
+TEXT_PRIMARY = "#1C2B3A"
+TEXT_SECONDARY = "#617186"
+TEXT_MUTED = "#8A98A9"
 
 # Bordures
-BORDER = "#DFE8F3"
+BORDER = "#E1E8F0"
 
 # Statuts
 SUCCESS = "#168568"
 SUCCESS_LIGHT = "#E4F7F0"
 
-WARNING = "#C78316"
+WARNING = "#B7791F"
 WARNING_LIGHT = "#FFF4DE"
 
-ERROR = "#D84B55"
+ERROR = "#D64550"
 ERROR_LIGHT = "#FDECEE"
 
 # Accent secondaire
-ACCENT_PURPLE = "#8065D5"
+ACCENT_PURPLE = "#7967C7"
 ACCENT_PURPLE_LIGHT = "#F0ECFF"
