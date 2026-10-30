@@ -1,80 +1,103 @@
 ﻿
 import customtkinter as ctk
 
-from frontend.ui.components.page_header import PageHeader
+from frontend.ui.components.document_header import DocumentHeader
+from frontend.ui.components.document_statistics import DocumentStatistics
+from frontend.ui.components.document_toolbar import DocumentToolbar
+from frontend.ui.components.document_card import DocumentCard
+from frontend.ui.dialogs.document_details_dialog import DocumentDetailsDialog
 from frontend.ui.styles import colors, typography
 
 
 class DocumentsPage(ctk.CTkFrame):
+    """Page de consultation et de gestion des documents."""
+
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(4, weight=1)
+
+        self.documents = [
+            {
+                "id": 1,
+                "name": "Facture_2026_001.pdf",
+                "client": "COPAG",
+                "type": "PDF",
+                "date": "30/10/2026",
+                "size": "245 KB",
+                "status": "À vérifier",
+            },
+            {
+                "id": 2,
+                "name": "Releve_bancaire_octobre.xlsx",
+                "client": "Entreprise Atlas",
+                "type": "Excel",
+                "date": "29/10/2026",
+                "size": "180 KB",
+                "status": "Classé",
+            },
+            {
+                "id": 3,
+                "name": "Declaration_TVA.pdf",
+                "client": "Maroc Services",
+                "type": "PDF",
+                "date": "28/10/2026",
+                "size": "320 KB",
+                "status": "À vérifier",
+            },
+            {
+                "id": 4,
+                "name": "Contrat_prestation.docx",
+                "client": "Entreprise Atlas",
+                "type": "Word",
+                "date": "27/10/2026",
+                "size": "95 KB",
+                "status": "Classé",
+            },
+        ]
+
+        self.search_query = ""
+        self.selected_filter = "Tous"
+        self.document_cards = []
 
         # En-tête
-        header = PageHeader(
+        self.header = DocumentHeader(self)
+        self.header.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=typography.PAGE_PADDING,
+            pady=(30, 20),
+        )
+
+        # Statistiques
+        self.statistics = DocumentStatistics(self)
+        self.statistics.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=typography.PAGE_PADDING,
+            pady=(0, 20),
+        )
+
+        # Barre de recherche et filtres
+        self.toolbar = DocumentToolbar(
             self,
-            title="Documents",
-            subtitle="Consultez et gérez les documents reçus",
+            on_search=self.search_documents,
+            on_filter=self.filter_documents,
         )
-        header.grid(
-            row=0, column=0, sticky="ew",
-            padx=32, pady=(30, 20)
+        self.toolbar.grid(
+            row=2,
+            column=0,
+            sticky="ew",
+            padx=typography.PAGE_PADDING,
+            pady=(0, 20),
         )
 
-        # Recherche
-        search_frame = ctk.CTkFrame(
+        # Titre de la liste
+        self.list_title = ctk.CTkLabel(
             self,
-            fg_color="transparent",
-        )
-        search_frame.grid(
-            row=1, column=0, sticky="ew",
-            padx=32, pady=(0, 18)
-        )
-        search_frame.grid_columnconfigure(0, weight=1)
-
-        self.search_input = ctk.CTkEntry(
-            search_frame,
-            placeholder_text="Rechercher un document...",
-            height=40,
-            corner_radius=10,
-            border_color=colors.BORDER,
-            fg_color=colors.SURFACE,
-            text_color=colors.TEXT_PRIMARY,
-        )
-        self.search_input.grid(
-            row=0, column=0, sticky="ew", padx=(0, 10)
-        )
-
-        self.search_button = ctk.CTkButton(
-            search_frame,
-            text="Rechercher",
-            width=120,
-            height=40,
-            corner_radius=10,
-            fg_color=colors.PRIMARY,
-            hover_color=colors.PRIMARY_HOVER,
-            command=self.search_documents,
-        )
-        self.search_button.grid(row=0, column=1)
-
-        # Zone de la liste
-        self.list_frame = ctk.CTkFrame(
-            self,
-            fg_color=colors.SURFACE,
-            corner_radius=16,
-            border_width=1,
-            border_color=colors.BORDER,
-        )
-        self.list_frame.grid(
-            row=2, column=0, sticky="nsew",
-            padx=32, pady=(0, 30)
-        )
-        self.list_frame.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(
-            self.list_frame,
             text="Liste des documents",
             font=ctk.CTkFont(
                 family=typography.FONT_FAMILY,
@@ -82,33 +105,132 @@ class DocumentsPage(ctk.CTkFrame):
                 weight="bold",
             ),
             text_color=colors.TEXT_PRIMARY,
-        ).grid(
-            row=0, column=0, sticky="w",
-            padx=22, pady=(22, 12)
         )
+        self.list_title.grid(
+            row=3,
+            column=0,
+            sticky="w",
+            padx=typography.PAGE_PADDING,
+            pady=(0, 12),
+        )
+
+        # Zone de la liste
+        self.list_frame = ctk.CTkScrollableFrame(
+            self,
+            fg_color=colors.SURFACE,
+            corner_radius=14,
+            border_width=1,
+            border_color=colors.BORDER,
+        )
+        self.list_frame.grid(
+            row=4,
+            column=0,
+            sticky="nsew",
+            padx=typography.PAGE_PADDING,
+            pady=(0, 25),
+        )
+        self.list_frame.grid_columnconfigure(0, weight=1)
 
         self.empty_message = ctk.CTkLabel(
             self.list_frame,
-            text=(
-                "Aucun document à afficher.\n"
-                "Les documents Gmail apparaîtront ici "
-                "après l'intégration."
+            text="Aucun document trouvé.",
+            font=ctk.CTkFont(
+                family=typography.FONT_FAMILY,
+                size=typography.BODY_SIZE,
             ),
-            font=ctk.CTkFont(size=14),
             text_color=colors.TEXT_SECONDARY,
-            justify="center",
-        )
-        self.empty_message.grid(
-            row=1, column=0, sticky="nsew",
-            padx=20, pady=30
         )
 
-    def search_documents(self):
-        # La recherche sera connectée aux données plus tard.
-        query = self.search_input.get().strip()
+        self.update_statistics()
+        self.display_documents()
 
-        if query:
-            print(f"Recherche demandée : {query}")
-        else:
-            print("Aucun terme de recherche saisi.")
+    def update_statistics(self):
+        total = len(self.documents)
 
+        pending = sum(
+            1 for document in self.documents
+            if document["status"] == "À vérifier"
+        )
+
+        classified = sum(
+            1 for document in self.documents
+            if document["status"] == "Classé"
+        )
+
+        self.statistics.update_statistics(
+            total=total,
+            pending=pending,
+            classified=classified,
+        )
+
+    def search_documents(self, query):
+        self.search_query = query.lower()
+        self.display_documents()
+
+    def filter_documents(self, filter_name):
+        self.selected_filter = filter_name
+        self.display_documents()
+
+    def get_filtered_documents(self):
+        filtered = self.documents
+
+        if self.search_query:
+            filtered = [
+                document for document in filtered
+                if self.search_query in document["name"].lower()
+                or self.search_query in document["client"].lower()
+            ]
+
+        if self.selected_filter == "À vérifier":
+            filtered = [
+                document for document in filtered
+                if document["status"] == "À vérifier"
+            ]
+
+        elif self.selected_filter == "Classés":
+            filtered = [
+                document for document in filtered
+                if document["status"] == "Classé"
+            ]
+
+        return filtered
+
+    def display_documents(self):
+        # Supprimer les anciennes cartes
+        for card in self.document_cards:
+            card.destroy()
+
+        self.document_cards.clear()
+        self.empty_message.grid_remove()
+
+        filtered_documents = self.get_filtered_documents()
+
+        if not filtered_documents:
+            self.empty_message.configure(
+                text="Aucun document ne correspond à votre recherche."
+            )
+            self.empty_message.grid(
+                row=0,
+                column=0,
+                pady=40,
+            )
+            return
+
+        for index, document in enumerate(filtered_documents):
+            card = DocumentCard(
+                self.list_frame,
+                document=document,
+                on_details=self.open_document_details,
+            )
+            card.grid(
+                row=index,
+                column=0,
+                sticky="ew",
+                padx=12,
+                pady=(12, 0),
+            )
+
+            self.document_cards.append(card)
+
+    def open_document_details(self, document):
+        DocumentDetailsDialog(self, document)
