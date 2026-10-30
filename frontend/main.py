@@ -10,6 +10,8 @@ from frontend.ui.pages.splash_screen import SplashScreen
 from frontend.ui.styles import colors
 from frontend.ui.styles.theme import configure_theme
 
+from backend.gmail_monitor import GmailMonitor
+
 
 class FidomekOneApp(ctk.CTk):
     """Fenêtre principale de FIDOMEK ONE."""
@@ -25,6 +27,9 @@ class FidomekOneApp(ctk.CTk):
 
         # Masquer la fenêtre principale au démarrage.
         self.withdraw()
+
+        # Service Gmail partagé avec la page Paramètres.
+        self.gmail_monitor = GmailMonitor()
 
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
@@ -82,11 +87,22 @@ class FidomekOneApp(ctk.CTk):
             on_complete=self.open_main_window,
         )
 
+        # Gérer la fermeture de l'application.
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
     def create_pages(self):
         """Créer chaque page une seule fois."""
 
         for page_name, page_class in self.page_classes.items():
-            page = page_class(self.content)
+
+            # Transmettre le service Gmail uniquement à SettingsPage.
+            if page_name == "settings":
+                page = page_class(
+                    self.content,
+                    gmail_monitor=self.gmail_monitor,
+                )
+            else:
+                page = page_class(self.content)
 
             page.grid(
                 row=0,
@@ -121,6 +137,20 @@ class FidomekOneApp(ctk.CTk):
 
         self.deiconify()
         self.lift()
+
+    def on_close(self):
+        """Arrêter Gmail avant de fermer la fenêtre."""
+
+        self.gmail_monitor.stop()
+        self._wait_for_gmail_shutdown()
+
+    def _wait_for_gmail_shutdown(self):
+        """Attendre la fin du thread sans bloquer l'interface."""
+
+        if self.gmail_monitor.is_alive:
+            self.after(100, self._wait_for_gmail_shutdown)
+        else:
+            self.destroy()
 
 
 if __name__ == "__main__":

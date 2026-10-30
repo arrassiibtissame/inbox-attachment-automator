@@ -13,6 +13,7 @@ class DocumentCard(ctk.CTkFrame):
         parent,
         document,
         on_details=None,
+        on_print=None,
     ):
         super().__init__(
             parent,
@@ -24,6 +25,7 @@ class DocumentCard(ctk.CTkFrame):
 
         self.document = document
         self.on_details = on_details
+        self.on_print = on_print
 
         self.grid_columnconfigure(0, weight=1)
 
@@ -105,9 +107,38 @@ class DocumentCard(ctk.CTkFrame):
             row=0,
             column=2,
             rowspan=2,
+            padx=(0, 8),
+        )
+
+        # Bouton d'impression
+        self.print_button = ctk.CTkButton(
+            self,
+            text="Imprimer",
+            width=85,
+            height=32,
+            corner_radius=8,
+            fg_color=colors.SURFACE,
+            hover_color=colors.BORDER,
+            border_width=1,
+            border_color=colors.BORDER,
+            text_color=colors.TEXT_PRIMARY,
+            font=ctk.CTkFont(
+                family=typography.FONT_FAMILY,
+                size=typography.LABEL_SIZE,
+            ),
+            command=self._print_document,
+        )
+        self.print_button.grid(
+            row=0,
+            column=3,
+            rowspan=2,
             padx=(0, 16),
         )
 
     def _show_details(self):
         if self.on_details:
             self.on_details(self.document)
+
+    def _print_document(self):
+        if self.on_print:
+            self.on_print(self.document)

@@ -135,6 +135,65 @@ def get_registered_download(message_id, part_key):
     return Path(row[0]), row[1]
 
 
+def get_downloaded_documents():
+    """Récupérer les documents enregistrés dans SQLite."""
+
+    documents = []
+
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT rowid, filename, saved_path, downloaded_at
+            FROM downloads
+            ORDER BY downloaded_at DESC
+            """
+        ).fetchall()
+
+    for row in rows:
+        file_path = Path(row["saved_path"])
+
+        extension = file_path.suffix.lower()
+
+        if extension == ".pdf":
+            document_type = "PDF"
+        elif extension in {".xls", ".xlsx", ".csv"}:
+            document_type = "Excel"
+        elif extension in {".doc", ".docx"}:
+            document_type = "Word"
+        else:
+            document_type = "Image"
+
+        try:
+            size_bytes = file_path.stat().st_size
+            size = f"{size_bytes / 1024:.1f} KB"
+        except OSError:
+            size = "Fichier introuvable"
+
+        try:
+            downloaded_at = datetime.fromisoformat(
+                row["downloaded_at"]
+            )
+            date = downloaded_at.strftime("%d/%m/%Y")
+        except (ValueError, TypeError):
+            date = "Date inconnue"
+
+        documents.append({
+            "id": row["rowid"],
+            "name": row["filename"],
+            "client": "Non attribué",
+            "type": document_type,
+            "date": date,
+            "size": size,
+            "status": "À vérifier",
+            "path": str(file_path),
+        })
+
+    return documents
+
+
+
 def can_restore_registered_file(saved_path, expected_hash):
     """
     Autorise la restauration si tous les enregistrements qui pointent
@@ -654,3 +713,62 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def get_downloaded_documents():
+    """Récupérer les documents téléchargés depuis SQLite."""
+
+    documents = []
+
+    with closing(sqlite3.connect(DATABASE_FILE)) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT rowid, filename, file_hash, saved_path, downloaded_at
+            FROM downloads
+            ORDER BY downloaded_at DESC
+            """
+        ).fetchall()
+
+    for row in rows:
+        file_path = Path(row["saved_path"])
+        extension = file_path.suffix.lower()
+
+        if extension == ".pdf":
+            document_type = "PDF"
+        elif extension in {".xls", ".xlsx", ".csv"}:
+            document_type = "Excel"
+        elif extension in {".doc", ".docx"}:
+            document_type = "Word"
+        elif extension in {".jpg", ".jpeg", ".png", ".webp"}:
+            document_type = "Image"
+        else:
+            document_type = "Autre"
+
+        try:
+            size_bytes = file_path.stat().st_size
+            size = f"{size_bytes / 1024:.1f} KB"
+        except OSError:
+            size = "Fichier introuvable"
+
+        try:
+            downloaded_at = datetime.fromisoformat(
+                row["downloaded_at"]
+            )
+            date = downloaded_at.strftime("%d/%m/%Y")
+        except (ValueError, TypeError):
+            date = "Date inconnue"
+
+        documents.append({
+            "id": row["rowid"],
+            "name": row["filename"],
+            "client": "Non attribué",
+            "type": document_type,
+            "date": date,
+            "size": size,
+            "status": "À vérifier",
+            "path": str(file_path),
+            "file_hash": row["file_hash"],
+        })
+
+    return documents
