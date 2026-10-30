@@ -6,9 +6,9 @@ from frontend.ui.pages.dashboard_page import DashboardPage
 from frontend.ui.pages.documents_page import DocumentsPage
 from frontend.ui.pages.clients_page import ClientsPage
 from frontend.ui.pages.settings_page import SettingsPage
+from frontend.ui.pages.splash_screen import SplashScreen
 from frontend.ui.styles import colors
 from frontend.ui.styles.theme import configure_theme
-from frontend.ui.pages.splash_screen import SplashScreen
 
 
 class FidomekOneApp(ctk.CTk):
@@ -25,6 +25,7 @@ class FidomekOneApp(ctk.CTk):
 
         # Masquer la fenêtre principale au démarrage.
         self.withdraw()
+
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -37,7 +38,7 @@ class FidomekOneApp(ctk.CTk):
             row=0,
             column=0,
             sticky="nsew",
-            padx=(0,0),
+            padx=0,
             pady=0,
         )
 
@@ -56,14 +57,23 @@ class FidomekOneApp(ctk.CTk):
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
 
-        self.pages = {
+        # Classes des pages disponibles.
+        self.page_classes = {
             "dashboard": DashboardPage,
             "documents": DocumentsPage,
             "clients": ClientsPage,
             "settings": SettingsPage,
         }
 
+        # Instances conservées pendant toute la durée de l'application.
+        self.page_instances = {}
+
         self.current_page = None
+
+        # Créer toutes les pages une seule fois.
+        self.create_pages()
+
+        # Afficher le tableau de bord.
         self.show_page("dashboard")
 
         # Créer le splash screen.
@@ -72,30 +82,45 @@ class FidomekOneApp(ctk.CTk):
             on_complete=self.open_main_window,
         )
 
-    def open_main_window(self):
-        """Afficher l'application après le splash screen."""
-        self.deiconify()
-        self.lift()
+    def create_pages(self):
+        """Créer chaque page une seule fois."""
+
+        for page_name, page_class in self.page_classes.items():
+            page = page_class(self.content)
+
+            page.grid(
+                row=0,
+                column=0,
+                sticky="nsew",
+            )
+
+            # Masquer la page sans la détruire.
+            page.grid_remove()
+
+            self.page_instances[page_name] = page
 
     def show_page(self, page_name):
-        """Affiche la page choisie dans la barre latérale."""
+        """Afficher une page existante sans recréer son instance."""
 
-        page_class = self.pages.get(page_name)
+        page = self.page_instances.get(page_name)
 
-        if page_class is None:
+        if page is None:
             return
 
         if self.current_page is not None:
-            self.current_page.destroy()
+            self.current_page.grid_remove()
 
-        self.current_page = page_class(self.content)
-        self.current_page.grid(
-            row=0,
-            column=0,
-            sticky="nsew",
-        )
+        page.grid()
+
+        self.current_page = page
 
         self.sidebar.set_active(page_name)
+
+    def open_main_window(self):
+        """Afficher l'application après le splash screen."""
+
+        self.deiconify()
+        self.lift()
 
 
 if __name__ == "__main__":

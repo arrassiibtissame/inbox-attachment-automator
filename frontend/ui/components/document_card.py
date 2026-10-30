@@ -6,9 +6,14 @@ from frontend.ui.components.document_status_badge import DocumentStatusBadge
 
 
 class DocumentCard(ctk.CTkFrame):
-    """Carte présentant les informations d'un document."""
+    """Carte présentant un document sélectionnable."""
 
-    def __init__(self, parent, document, on_details=None):
+    def __init__(
+        self,
+        parent,
+        document,
+        on_details=None,
+    ):
         super().__init__(
             parent,
             fg_color=colors.SURFACE,
@@ -44,10 +49,9 @@ class DocumentCard(ctk.CTkFrame):
 
         # Informations du document
         information = (
-            f"Client : {document.get('client', 'Non attribué')}   •   "
-            f"Type : {document.get('type', 'Inconnu')}   •   "
-            f"Date : {document.get('date', '-')}   •   "
-            f"Taille : {document.get('size', '-')}"
+            f"{document.get('client', 'Non attribué')}  •  "
+            f"{document.get('type', 'Inconnu')}  •  "
+            f"{document.get('date', '-')}"
         )
 
         self.info_label = ctk.CTkLabel(
@@ -68,28 +72,29 @@ class DocumentCard(ctk.CTkFrame):
             pady=(0, 14),
         )
 
-        # Statut et bouton de détails
+        # Statut du document
         self.status_badge = DocumentStatusBadge(
             self,
-            status=document.get("status", "À vérifier"),
+            status=document.get("status", "Reçu"),
         )
         self.status_badge.grid(
             row=0,
             column=1,
             rowspan=2,
-            padx=12,
+            padx=10,
             pady=12,
         )
 
+        # Bouton de consultation
         self.details_button = ctk.CTkButton(
             self,
-            text="Détails",
-            width=80,
+            text="Afficher",
+            width=85,
             height=32,
             corner_radius=8,
-            fg_color=colors.SURFACE_ALT,
-            hover_color=colors.BORDER,
-            text_color=colors.TEXT_PRIMARY,
+            fg_color=colors.PRIMARY,
+            hover_color=colors.PRIMARY_HOVER,
+            text_color=colors.SURFACE,
             font=ctk.CTkFont(
                 family=typography.FONT_FAMILY,
                 size=typography.LABEL_SIZE,
