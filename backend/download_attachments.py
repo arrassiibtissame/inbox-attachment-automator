@@ -304,21 +304,18 @@ def authenticate_gmail():
 def build_gmail_query():
     now = datetime.now(TIMEZONE)
 
-    start_of_day = now.replace(
+    start_date = (now - timedelta(days=2)).replace(
         hour=0,
         minute=0,
         second=0,
         microsecond=0,
     )
-    end_of_day = start_of_day + timedelta(days=1)
 
-    start_timestamp = int(start_of_day.timestamp())
-    end_timestamp = int(end_of_day.timestamp())
+    start_timestamp = int(start_date.timestamp())
 
     query = (
         f"after:{start_timestamp} "
-        f"before:{end_timestamp} "
-        "in:inbox has:attachment"
+        "has:attachment"
     )
 
     if TEST_MODE:

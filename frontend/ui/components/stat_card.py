@@ -35,16 +35,17 @@ class StatCard(ctk.CTkFrame):
             text_color=colors.TEXT_SECONDARY,
         ).grid(row=0, column=0, sticky="w", padx=18, pady=(18, 8))
 
-        ctk.CTkLabel(
+        self.value_label = ctk.CTkLabel(
             self,
-            text=value,
+            text=str(value),
             font=ctk.CTkFont(
                 family=typography.FONT_FAMILY,
                 size=typography.STAT_VALUE_SIZE,
                 weight="bold",
             ),
             text_color=colors.TEXT_PRIMARY,
-        ).grid(row=1, column=0, sticky="w", padx=18)
+        )
+        self.value_label.grid(row=1, column=0, sticky="w", padx=18)
 
         ctk.CTkLabel(
             self,
@@ -63,3 +64,6 @@ class StatCard(ctk.CTkFrame):
             corner_radius=2,
         ).grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 14))
 
+    def set_value(self, value):
+        """Mettre à jour la valeur affichée."""
+        self.value_label.configure(text=str(value))

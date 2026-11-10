@@ -2,7 +2,7 @@
 # Secrets et authentification Gmail
 client_secret.json
 credentials.json
-token.json
+token*.json
 token_cabinet.json
 
 # Bases de données et sauvegardes
