@@ -6,8 +6,7 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-import download_attachments as app
-
+from backend import download_attachments as app
 
 class TestDatabase(unittest.TestCase):
 

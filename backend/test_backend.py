@@ -3,8 +3,7 @@ import sqlite3
 
 import pytest
 
-import download_attachments as app
-
+from backend import download_attachments as app
 
 @pytest.fixture
 def isolated_database(tmp_path, monkeypatch):

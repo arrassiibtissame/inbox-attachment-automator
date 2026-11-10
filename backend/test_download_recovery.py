@@ -10,8 +10,7 @@ from unittest.mock import patch
 import base64
 from unittest.mock import Mock
 
-import download_attachments as app
-
+from backend import download_attachments as app
 
 class TestDownloadRecovery(unittest.TestCase):
 

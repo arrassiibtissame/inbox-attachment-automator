@@ -6,8 +6,7 @@ from googleapiclient.errors import HttpError
 from google.auth.exceptions import RefreshError
 from httplib2 import Response
 
-import download_attachments as app
-
+from backend import download_attachments as app
 
 class FakeRequest:
     def __init__(self, result=None, error=None):

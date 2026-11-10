@@ -1,8 +1,7 @@
 
 from pathlib import Path
 
-import download_attachments as app
-
+from backend import download_attachments as app
 
 def test_allowed_extensions_are_accepted():
     for extension in app.ALLOWED_EXTENSIONS:
