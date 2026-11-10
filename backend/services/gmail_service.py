@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -59,6 +60,7 @@ class GmailService:
     # AUTHENTICATION
     # --------------------------------------------------------
 
+
     def authenticate(self):
         credentials = None
         token_file = settings.GMAIL_TOKEN_FILE
@@ -71,7 +73,14 @@ class GmailService:
             )
 
         if credentials and credentials.expired and credentials.refresh_token:
-            credentials.refresh(Request())
+            try:
+                credentials.refresh(Request())
+            except RefreshError:
+                logger.warning(
+                    "Token Gmail expirÃ© ou rÃ©voquÃ©. "
+                    "Nouvelle authentification nÃ©cessaire."
+                )
+                credentials = None
 
         if not credentials or not credentials.valid:
             if not secret_file.exists():
@@ -86,10 +95,10 @@ class GmailService:
 
             credentials = flow.run_local_server(port=0)
 
-            token_file.write_text(
-                credentials.to_json(),
-                encoding="utf-8",
-            )
+        token_file.write_text(
+            credentials.to_json(),
+            encoding="utf-8",
+        )
 
         service = build(
             "gmail",
@@ -108,14 +117,9 @@ class GmailService:
         if not email:
             raise RuntimeError("Adresse Gmail introuvable.")
 
-        logger.info("Gmail connecté : %s", email)
+        logger.info("Gmail connectÃ© : %s", email)
 
         return service, profile
-
-    # --------------------------------------------------------
-    # GMAIL SEARCH
-    # --------------------------------------------------------
-
     @staticmethod
     def build_query():
         now = datetime.now(TIMEZONE)
@@ -165,7 +169,7 @@ class GmailService:
         extension = Path(filename).suffix.lower()
 
         if extension not in ALLOWED_EXTENSIONS:
-            logger.warning("Extension non autorisée : %s", filename)
+            logger.warning("Extension non autorisÃƒÂ©e : %s", filename)
             return False
 
         if not content:
@@ -309,7 +313,7 @@ class GmailService:
                 )
             except ValueError:
                 raise RuntimeError(
-                    "Le chemin du fichier existant est hors du stockage autorisé."
+                    "Le chemin du fichier existant est hors du stockage autorisÃƒÂ©."
                 )
 
             if (
@@ -321,7 +325,7 @@ class GmailService:
         else:
             if existing_receipt:
                 raise RuntimeError(
-                    "Reçu Gmail existant, mais fichier correspondant introuvable."
+                    "ReÃƒÂ§u Gmail existant, mais fichier correspondant introuvable."
                 )
 
             safe_name = self.sanitize_filename(filename)
@@ -347,7 +351,7 @@ class GmailService:
 
         if existing_receipt:
             logger.info(
-                "Pièce jointe déjà enregistrée : %s",
+                "PiÃƒÂ¨ce jointe dÃƒÂ©jÃƒÂ  enregistrÃƒÂ©e : %s",
                 filename,
             )
             return False
@@ -397,7 +401,7 @@ class GmailService:
         )
 
         logger.info(
-            "Document enregistré : %s (document_id=%s)",
+            "Document enregistrÃƒÂ© : %s (document_id=%s)",
             filename,
             document.id,
         )
@@ -484,7 +488,7 @@ class GmailService:
 
                     except Exception:
                         logger.exception(
-                            "Erreur sur la pièce jointe : %s",
+                            "Erreur sur la piÃƒÂ¨ce jointe : %s",
                             filename,
                         )
                         raise
@@ -506,7 +510,7 @@ class GmailService:
 
             except Exception:
                 logger.exception(
-                    "Erreur pendant le nettoyage des fichiers après échec."
+                    "Erreur pendant le nettoyage des fichiers aprÃƒÂ¨s ÃƒÂ©chec."
                 )
 
             finally:
@@ -520,45 +524,45 @@ class GmailService:
     # FULL SYNCHRONIZATION
     # --------------------------------------------------------
 
-    
+
     def sync_once(self, session: Session) -> dict:
         service, profile = self.authenticate()
-    
+
         email = profile["emailAddress"]
-    
+
         account_repository = SyncAccountRepository(session)
         state_repository = SyncStateRepository(session)
-    
+
         with session.begin():
             account = account_repository.get_by_email(email)
-    
+
             if account is None:
                 account = account_repository.create(
                     email=email,
                     provider=SyncProvider.GMAIL,
                 )
-    
+
             account_repository.mark_connected(account.id)
-    
+
             state = state_repository.get_by_account_id(account.id)
-    
+
             if state is None:
                 state = state_repository.create(
                     sync_account_id=account.id,
                 )
-    
+
             state_id = state.id
             state_repository.update_attempt(state_id)
-    
+
         processed_messages = 0
         saved_documents = 0
         failed_messages = []
-    
+
         query = self.build_query()
         page_token = None
-    
-        logger.info("Début de synchronisation Gmail : %s", email)
-    
+
+        logger.info("DÃƒÂ©but de synchronisation Gmail : %s", email)
+
         try:
             while True:
                 response = (
@@ -572,73 +576,73 @@ class GmailService:
                     )
                     .execute()
                 )
-    
+
                 for message in response.get("messages", []):
                     message_id = message["id"]
-    
+
                     try:
                         saved_documents += self.process_message(
                             service,
                             session,
                             message_id,
                         )
-    
+
                         processed_messages += 1
-    
+
                     except Exception as exc:
                         logger.exception(
-                            "Échec du traitement du message Gmail %s",
+                            "Ãƒâ€°chec du traitement du message Gmail %s",
                             message_id,
                         )
-    
+
                         failed_messages.append({
                             "message_id": message_id,
                             "error": str(exc),
                         })
-    
+
                 page_token = response.get("nextPageToken")
-    
+
                 if not page_token:
                     break
-    
+
             with session.begin():
                 if failed_messages:
                     error_summary = "; ".join(
                         f"{item['message_id']}: {item['error']}"
                         for item in failed_messages
                     )
-    
+
                     state_repository.mark_error(
                         state_id,
                         error=error_summary[:2000],
                     )
                 else:
                     state_repository.mark_success(state_id)
-    
+
         except Exception as exc:
             session.rollback()
-    
+
             logger.exception(
                 "Erreur pendant la synchronisation Gmail de %s",
                 email,
             )
-    
+
             with session.begin():
                 state_repository.mark_error(
                     state_id,
                     error=str(exc)[:2000],
                 )
-    
+
             raise
-    
+
         logger.info(
-            "Synchronisation terminée : %s messages traités, "
-            "%s documents enregistrés, %s erreurs.",
+            "Synchronisation terminÃƒÂ©e : %s messages traitÃƒÂ©s, "
+            "%s documents enregistrÃƒÂ©s, %s erreurs.",
             processed_messages,
             saved_documents,
             len(failed_messages),
         )
-    
+
         return {
             "email": email,
             "processed_messages": processed_messages,

@@ -1,15 +1,11 @@
 
 import customtkinter as ctk
 
-from frontend.ui.styles import colors
-from frontend.ui.components.client_card_header import ClientCardHeader
-from frontend.ui.components.client_info_section import ClientInfoSection
-from frontend.ui.components.client_activity import ClientActivity
-from frontend.ui.components.client_card_actions import ClientCardActions
+from frontend.ui.styles import colors, typography
 
 
 class ClientCard(ctk.CTkFrame):
-    """Card displaying a client's information and available actions."""
+    """Client card displaying the company name and responsible employee."""
 
     def __init__(
         self,
@@ -19,6 +15,7 @@ class ClientCard(ctk.CTkFrame):
         phone="",
         tax_id="",
         email="Email non renseigné",
+        responsible_name="Non attribué",
         document_count=0,
         last_activity="Aucune activité",
         on_open=None,
@@ -31,77 +28,55 @@ class ClientCard(ctk.CTkFrame):
             corner_radius=14,
             border_width=1,
             border_color=colors.BORDER,
+            height=100,
         )
+
+        self.on_open = on_open
 
         self.grid_columnconfigure(0, weight=1)
+        self.grid_propagate(False)
 
-        # 1. En-tête : avatar, nom et nombre de documents
-        self.header = ClientCardHeader(
+        self.name_label = ctk.CTkLabel(
             self,
-            name=name,
-            document_count=document_count,
+            text=name,
+            font=ctk.CTkFont(
+                family=typography.FONT_FAMILY,
+                size=15,
+                weight="bold",
+            ),
+            text_color=colors.TEXT_PRIMARY,
+            anchor="w",
         )
-        self.header.grid(
+        self.name_label.grid(
             row=0,
             column=0,
             sticky="ew",
-            padx=16,
-            pady=(18, 12),
+            padx=20,
+            pady=(16, 2),
         )
 
-        # 2. Informations du client
-        self.info_section = ClientInfoSection(
+        self.responsible_label = ctk.CTkLabel(
             self,
-            contact=contact,
-            phone=phone,
-            tax_id=tax_id,
-            email=email,
+            text=f"Responsable : {responsible_name}",
+            font=ctk.CTkFont(
+                family=typography.FONT_FAMILY,
+                size=12,
+            ),
+            text_color=colors.TEXT_SECONDARY,
+            anchor="w",
         )
-        self.info_section.grid(
+        self.responsible_label.grid(
             row=1,
             column=0,
             sticky="ew",
-            padx=16,
-            pady=(0, 12),
-        )
-
-        # Séparateur
-        ctk.CTkFrame(
-            self,
-            height=1,
-            fg_color=colors.BORDER,
-        ).grid(
-            row=2,
-            column=0,
-            sticky="ew",
-            padx=16,
-            pady=(0, 12),
-        )
-
-        # 3. Dernière activité
-        self.activity = ClientActivity(
-            self,
-            last_activity=last_activity,
-        )
-        self.activity.grid(
-            row=3,
-            column=0,
-            sticky="ew",
-            padx=16,
+            padx=20,
             pady=(0, 14),
         )
 
-        # 4. Actions
-        self.actions = ClientCardActions(
-            self,
-            on_open=on_open,
-            on_edit=on_edit,
-            on_delete=on_delete,
-        )
-        self.actions.grid(
-            row=4,
-            column=0,
-            sticky="ew",
-            padx=16,
-            pady=(0, 16),
-        )
+        self.bind("<Button-1>", self._handle_open)
+        self.name_label.bind("<Button-1>", self._handle_open)
+        self.responsible_label.bind("<Button-1>", self._handle_open)
+
+    def _handle_open(self, event=None):
+        if self.on_open:
+            self.on_open()

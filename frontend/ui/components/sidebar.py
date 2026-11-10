@@ -1,5 +1,6 @@
 ﻿
 from pathlib import Path
+import profile
 import customtkinter as ctk
 from PIL import Image
 
@@ -37,7 +38,7 @@ def load_icon(name, size=(20, 20)):
 
 
 class Sidebar(ctk.CTkFrame):
-    def __init__(self, master, on_navigate):
+    def __init__(self, master, on_navigate, current_user, on_logout):
         super().__init__(
             master,
             width=256,
@@ -47,8 +48,15 @@ class Sidebar(ctk.CTkFrame):
         )
 
         self.on_navigate = on_navigate
+        self.on_logout = on_logout
+        self.current_user = current_user
+
         self.buttons = {}
         self.icon_images = []
+        self.nav = None
+        self.profile_avatar = None
+        self.profile_name = None
+        self.profile_email = None
 
         self.grid_propagate(False)
         self.grid_columnconfigure(0, weight=1)
@@ -59,7 +67,7 @@ class Sidebar(ctk.CTkFrame):
         self._build_navigation()
         self._build_bottom()
 
-    
+
     def _build_brand(self):
         brand = ctk.CTkFrame(
             self,
@@ -168,31 +176,43 @@ class Sidebar(ctk.CTkFrame):
         avatar.grid(row=0, column=0, padx=(10, 10), pady=12)
         avatar.grid_propagate(False)
 
-        ctk.CTkLabel(
+        self.profile_avatar = ctk.CTkLabel(
             avatar,
-            text="FO",
-            font=(FONT, 11, "bold"),
-            text_color="#A7FFF3",
-        ).place(relx=0.5, rely=0.5, anchor="center")
+            text="U",
+
+            font=(FONT, 10, "bold"),
+            text_color=WHITE,
+            fg_color="#168FB8",
+            width=36,
+            height=36,
+            corner_radius=18,
+        )
+        self.profile_avatar.grid(
+            row=0,
+            column=0,
+            padx=(0, 10),
+        )
 
         copy = ctk.CTkFrame(card, fg_color="transparent")
         copy.grid(row=0, column=1, sticky="ew", pady=10)
 
-        ctk.CTkLabel(
+        self.welcome_label = ctk.CTkLabel(
             copy,
-            text="ESPACE DE TRAVAIL",
-            font=(FONT, 8, "bold"),
+            text="Bienvenue",
+            font=(FONT, 9, "bold"),
             text_color="#8FA6BF",
             anchor="w",
-        ).pack(anchor="w")
+        )
+        self.welcome_label.pack(anchor="w")
 
-        ctk.CTkLabel(
+        self.welcome_name = ctk.CTkLabel(
             copy,
-            text="Fidomek One",
+            text="Utilisateur",
             font=(FONT, 13, "bold"),
             text_color=WHITE,
             anchor="w",
-        ).pack(anchor="w", pady=(3, 0))
+        )
+        self.welcome_name.pack(anchor="w", pady=(3, 0))
 
         ctk.CTkLabel(
             card,
@@ -216,29 +236,89 @@ class Sidebar(ctk.CTkFrame):
             pady=(27, 9),
         )
 
-        nav = ctk.CTkFrame(
+        self.nav = ctk.CTkFrame(
             self,
             fg_color="transparent",
         )
-        nav.grid(
+        nav = self.nav
+
+        self.nav.grid(
             row=2,
             column=0,
             sticky="new",
             padx=20,
             pady=(51, 0),
         )
-        nav.grid_columnconfigure(0, weight=1)
+        self.nav.grid_columnconfigure(0, weight=1)
 
         items = [
             ("dashboard", "Tableau de bord", "dashboard"),
             ("clients", "Clients", "clients"),
             ("documents", "Documents", "documents"),
-            ("settings", "Paramètres", "parametres"),
         ]
+
+        if (
+            self.current_user is not None
+            and getattr(
+                self.current_user.role,
+                "value",
+                self.current_user.role,
+            )
+            == "ADMIN"
+        ):
+            items.append(
+                ("employees", "Gestion des employés", "clients")
+            )
+
+        items.append(
+            ("settings", "Paramètres", "parametres")
+        )
 
         for row, (key, label, icon_name) in enumerate(items):
             button = self._make_button(
                 nav,
+                label,
+                icon_name,
+                lambda page=key: self.on_navigate(page),
+            )
+            button.grid(
+                row=row,
+                column=0,
+                sticky="ew",
+                pady=(0, 4),
+            )
+            self.buttons[key] = button
+
+    def set_user(self, current_user):
+        """Actualiser le menu selon le rôle de l'utilisateur."""
+        self.current_user = current_user
+
+        for button in self.buttons.values():
+            button.destroy()
+        self.buttons.clear()
+
+        items = [
+            ("dashboard", "Tableau de bord", "dashboard"),
+            ("clients", "Clients", "clients"),
+            ("documents", "Documents", "documents"),
+        ]
+
+        if (
+            self.current_user is not None
+            and getattr(
+                self.current_user.role,
+                "value",
+                self.current_user.role,
+            )
+            == "ADMIN"
+        ):
+            items.append(("employees", "Gestion des employés", "clients"))
+
+        items.append(("settings", "Paramètres", "parametres"))
+
+        for row, (key, label, icon_name) in enumerate(items):
+            button = self._make_button(
+                self.nav,
                 label,
                 icon_name,
                 lambda page=key: self.on_navigate(page),
@@ -383,6 +463,7 @@ class Sidebar(ctk.CTkFrame):
             height=36,
             corner_radius=18,
         )
+        self.profile_avatar = avatar
         avatar.place_forget()
 
         # Avatar textuel au-dessus du cercle
@@ -394,32 +475,66 @@ class Sidebar(ctk.CTkFrame):
         )
         user_text.grid(row=0, column=1, sticky="w")
 
-        ctk.CTkLabel(
+        self.profile_name = ctk.CTkLabel(
             user_text,
             text="Utilisateur",
             font=(FONT, 11, "bold"),
             text_color="#F4F8FB",
             anchor="w",
-        ).pack(anchor="w")
+        )
+        self.profile_name.pack(anchor="w")
 
-        ctk.CTkLabel(
+        self.profile_email = ctk.CTkLabel(
             user_text,
             text="Compte local",
             font=(FONT, 9),
             text_color="#8FA6BF",
             anchor="w",
-        ).pack(anchor="w", pady=(3, 0))
+        )
+        self.profile_email.pack(anchor="w", pady=(3, 0))
 
         ctk.CTkButton(
             profile,
-            text="•••",
-            width=24,
-            height=25,
+            text="↪",
+            width=30,
+            height=30,
             fg_color="transparent",
             hover_color=HOVER,
             text_color="#8FA6BF",
-            command=lambda: None,
+            command=self.on_logout,
         ).grid(row=0, column=2)
+
+
+
+        def update_profile(self):
+         """Actualiser le profil selon le compte connecté."""
+
+        if self.current_user is None:
+            self.profile_avatar.configure(text="U")
+            self.profile_name.configure(text="Utilisateur")
+            self.profile_email.configure(text="Compte local")
+            self.welcome_label.configure(text="Bienvenue")
+            self.welcome_name.configure(text="Utilisateur")
+            return
+
+        user = self.current_user
+
+        full_name = (user.full_name or "Utilisateur").strip()
+        civility = (user.civility or "").strip()
+
+        name_parts = full_name.split()
+        initials = "".join(part[0].upper() for part in name_parts[:2])
+
+        self.profile_avatar.configure(text=initials or "U")
+
+        display_name = f"{civility} {full_name}".strip() if civility else full_name
+
+        self.profile_name.configure(text=display_name)
+        self.profile_email.configure(text=user.email or "")
+
+        self.welcome_label.configure(text="Bienvenue")
+        self.welcome_name.configure(text=display_name)
+
 
     def set_active(self, page_name):
         for key, button in self.buttons.items():

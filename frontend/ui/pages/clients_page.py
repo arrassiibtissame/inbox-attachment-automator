@@ -6,54 +6,21 @@ from frontend.ui.components.search_bar import SearchBar
 from frontend.ui.components.client_card import ClientCard
 from frontend.ui.dialogs.client_form_dialog import ClientFormDialog
 from frontend.ui.styles import colors, typography
-
+from backend.database.connection import SessionLocal
+from backend.services.client_service import ClientService
 
 class ClientsPage(ctk.CTkFrame):
-    def __init__(self, parent):
+
+    def __init__(self, parent, current_user):
         super().__init__(parent, fg_color="transparent")
+
+        self.current_user = current_user
 
         self.active_filter = "all"
         self.search_query = ""
 
-        # Données temporaires de démonstration
-        self.clients = [
-            {
-                "name": "Atlas Distribution SARL",
-                "contact": "Contact principal",
-                "email": "contact@atlas.example",
-                "phone": "0612345678",
-                "tax_id": "",
-                "document_count": 24,
-                "last_activity": "Aujourd'hui",
-            },
-            {
-                "name": "Maroc Services",
-                "contact": "Contact principal",
-                "email": "contact@marocservices.example",
-                "phone": "0623456789",
-                "tax_id": "",
-                "document_count": 18,
-                "last_activity": "Hier",
-            },
-            {
-                "name": "Bâtiment du Centre",
-                "contact": "Contact principal",
-                "email": "contact@batiment.example",
-                "phone": "0634567890",
-                "tax_id": "",
-                "document_count": 12,
-                "last_activity": "Il y a 2 jours",
-            },
-            {
-                "name": "Comptoir du Nord",
-                "contact": "Contact principal",
-                "email": "contact@comptoir.example",
-                "phone": "0645678901",
-                "tax_id": "",
-                "document_count": 31,
-                "last_activity": "Aujourd'hui",
-            },
-        ]
+        # Chargement des clients depuis la base de données
+        self.clients = self._load_clients()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
@@ -129,8 +96,37 @@ class ClientsPage(ctk.CTkFrame):
             weight=1,
             uniform="clients",
         )
-
         self.render_clients(self.clients)
+
+
+    def _load_clients(self):
+        session = SessionLocal()
+
+        try:
+            service = ClientService(session)
+            clients = service.list_clients(self.current_user)
+
+            return [
+                {
+                    "id": client.id,
+                    "name": client.company_name,
+                    "contact": client.contact_name or "",
+                    "email": client.email or "",
+                    "phone": client.phone_number or "",
+                    "tax_id": client.ice or "",
+                    "document_count": 0,
+                    "last_activity": "Aucune activité",
+                    "responsible_name": (
+                        client.responsible_user.full_name
+                        if client.responsible_user
+                        else "Non attribué"
+                    ),
+                }
+                for client in clients
+            ]
+
+        finally:
+            session.close()
 
     # --------------------------------------------------
     # AFFICHAGE DES CLIENTS
@@ -172,6 +168,10 @@ class ClientsPage(ctk.CTkFrame):
                     "email",
                     "Email non renseigné",
                 ),
+                responsible_name=client.get(
+                    "responsible_name",
+                    "Non attribué",
+),
                 document_count=client.get("document_count", 0),
                 last_activity=client.get(
                     "last_activity",

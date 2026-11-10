@@ -70,6 +70,15 @@ class Client(Base):
         String(30),
         nullable=True,
     )
+    contact_name: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+    )
+
+    email: Mapped[str | None] = mapped_column(
+        String(254),
+        nullable=True,
+    )
 
     address: Mapped[str | None] = mapped_column(
         String(500),

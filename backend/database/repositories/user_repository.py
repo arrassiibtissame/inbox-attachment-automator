@@ -15,6 +15,7 @@ class UserRepository:
         self,
         *,
         full_name: str,
+        civility: str | None = None,
         email: str,
         password_hash: str,
         role: UserRole = UserRole.EMPLOYEE,
@@ -24,6 +25,7 @@ class UserRepository:
             email=email,
             password_hash=password_hash,
             role=role,
+            civility=civility,
         )
 
         self.session.add(user)
@@ -72,6 +74,7 @@ class UserRepository:
         user_id: int,
         *,
         full_name: str | None = None,
+        civility: str | None = None,
         email: str | None = None,
     ) -> User | None:
         user = self.get_by_id(user_id)
@@ -81,6 +84,9 @@ class UserRepository:
 
         if full_name is not None:
             user.full_name = full_name
+
+        if civility is not None:
+            user.civility = civility
 
         if email is not None:
             user.email = email

@@ -1,4 +1,5 @@
-﻿from sqlalchemy import select
+﻿
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.database.models.client import Client
@@ -23,6 +24,8 @@ class ClientRepository:
         rc_city: str | None = None,
         patente: str | None = None,
         phone_number: str | None = None,
+        contact_name: str | None = None,
+        email: str | None = None,
         address: str | None = None,
     ) -> Client:
         client = Client(
@@ -36,6 +39,8 @@ class ClientRepository:
             rc_city=rc_city,
             patente=patente,
             phone_number=phone_number,
+            contact_name=contact_name,
+            email=email,
             address=address,
         )
 
@@ -81,3 +86,60 @@ class ClientRepository:
         statement = statement.order_by(Client.company_name)
 
         return list(self.session.scalars(statement).all())
+
+    def list_all(
+        self,
+        *,
+        active_only: bool = True,
+    ) -> list[Client]:
+        """List all clients, mainly for administrators."""
+        statement = select(Client)
+
+        if active_only:
+            statement = statement.where(Client.is_active.is_(True))
+
+        statement = statement.order_by(Client.company_name)
+
+        return list(self.session.scalars(statement).all())
+
+    def update(
+        self,
+        client: Client,
+        **changes,
+    ) -> Client:
+        """Update allowed client fields."""
+        allowed_fields = {
+            "company_name",
+            "internal_code",
+            "ice",
+            "if_number",
+            "cnss_number",
+            "rc_number",
+            "rc_city",
+            "patente",
+            "phone_number",
+            "contact_name",
+            "email",
+            "address",
+        }
+
+        for field, value in changes.items():
+            if field not in allowed_fields:
+                raise ValueError(
+                    f"Modification non autorisée : {field}"
+                )
+
+            setattr(client, field, value)
+
+        self.session.flush()
+        return client
+
+    def set_active(
+        self,
+        client: Client,
+        active: bool,
+    ) -> Client:
+        """Archive or restore a client."""
+        client.is_active = active
+        self.session.flush()
+        return client

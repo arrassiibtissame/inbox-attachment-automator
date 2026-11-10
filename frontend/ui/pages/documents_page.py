@@ -17,7 +17,8 @@ from frontend.ui.styles import colors, typography
 class DocumentsPage(ctk.CTkFrame):
     """Page de consultation et de gestion des documents."""
 
-    REFRESH_INTERVAL = 5000
+    REFRESH_INTERVAL = 30000
+    PAGE_SIZE = 20
 
     def __init__(self, parent):
         super().__init__(parent, fg_color="transparent")
@@ -30,6 +31,7 @@ class DocumentsPage(ctk.CTkFrame):
         self.selected_filter = "Tous"
         self.document_cards = []
         self._refresh_job = None
+        self.current_page = 0
 
         # En-tête
         self.header = DocumentHeader(self)
@@ -126,6 +128,39 @@ class DocumentsPage(ctk.CTkFrame):
             text_color=colors.TEXT_SECONDARY,
         )
 
+                # Navigation entre les pages de documents
+        self.pagination_frame = ctk.CTkFrame(
+            self.list_frame,
+            fg_color="transparent",
+        )
+
+        self.previous_button = ctk.CTkButton(
+            self.pagination_frame,
+            text="← Précédent",
+            width=100,
+            command=self.previous_page,
+        )
+        self.previous_button.grid(row=0, column=0, padx=8)
+
+        self.page_label = ctk.CTkLabel(
+            self.pagination_frame,
+            text="Page 1 / 1",
+            font=ctk.CTkFont(
+                family=typography.FONT_FAMILY,
+                size=typography.CAPTION_SIZE,
+            ),
+            text_color=colors.TEXT_SECONDARY,
+        )
+        self.page_label.grid(row=0, column=1, padx=8)
+
+        self.next_button = ctk.CTkButton(
+            self.pagination_frame,
+            text="Suivant →",
+            width=100,
+            command=self.next_page,
+        )
+        self.next_button.grid(row=0, column=2, padx=8)
+
         # Panneau latéral
         self.preview_panel = DocumentPreviewPanel(self.main_area)
         self.preview_panel.grid(
@@ -188,10 +223,12 @@ class DocumentsPage(ctk.CTkFrame):
 
     def search_documents(self, query):
         self.search_query = query.lower()
+        self.current_page = 0
         self.display_documents()
 
     def filter_documents(self, filter_name):
         self.selected_filter = filter_name
+        self.current_page = 0
         self.display_documents()
 
     def get_filtered_documents(self):
@@ -220,13 +257,14 @@ class DocumentsPage(ctk.CTkFrame):
             ]
 
         return filtered
-
     def display_documents(self):
+        # Supprimer uniquement les cartes actuellement affichées
         for card in self.document_cards:
             card.destroy()
 
         self.document_cards.clear()
         self.empty_message.grid_remove()
+        self.pagination_frame.grid_remove()
 
         filtered_documents = self.get_filtered_documents()
 
@@ -238,7 +276,24 @@ class DocumentsPage(ctk.CTkFrame):
             )
             return
 
-        for index, document in enumerate(filtered_documents):
+        # Calculer le nombre de pages
+        total_pages = (
+            len(filtered_documents) + self.PAGE_SIZE - 1
+        ) // self.PAGE_SIZE
+
+        # Éviter de rester sur une page qui n'existe plus
+        self.current_page = min(
+            self.current_page,
+            total_pages - 1,
+        )
+
+        # Sélectionner uniquement les documents de la page actuelle
+        start = self.current_page * self.PAGE_SIZE
+        end = start + self.PAGE_SIZE
+
+        page_documents = filtered_documents[start:end]
+
+        for index, document in enumerate(page_documents):
             card = DocumentCard(
                 self.list_frame,
                 document=document,
@@ -257,6 +312,43 @@ class DocumentsPage(ctk.CTkFrame):
             )
 
             self.document_cards.append(card)
+
+        # Afficher les commandes de pagination
+        if total_pages > 1:
+            self.pagination_frame.grid(
+                row=len(page_documents),
+                column=0,
+                pady=15,
+            )
+
+            self.page_label.configure(
+                text=f"Page {self.current_page + 1} / {total_pages}"
+            )
+
+            self.previous_button.configure(
+                state="normal" if self.current_page > 0 else "disabled"
+            )
+
+            self.next_button.configure(
+                state="normal"
+                if self.current_page < total_pages - 1
+                else "disabled"
+            )
+    def previous_page(self):
+                 if self.current_page > 0:
+                   self.current_page -= 1
+                   self.display_documents()
+
+    def next_page(self):
+        filtered_documents = self.get_filtered_documents()
+
+        total_pages = (
+            len(filtered_documents) + self.PAGE_SIZE - 1
+        ) // self.PAGE_SIZE
+
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.display_documents()
 
     def print_document(self, document):
         """Envoyer un document à l'application d'impression Windows."""
