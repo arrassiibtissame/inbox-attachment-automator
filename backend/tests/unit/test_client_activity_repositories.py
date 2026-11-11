@@ -179,7 +179,7 @@ def test_reminder_create_and_get_by_id(db_session):
     assert result is not None
     assert result.title == "D?claration fiscale"
     assert result.description == "Pr?parer les documents"
-    assert result.status == "? faire"
+    assert result.status == "\u00c0 faire"
     assert result.completed_at is None
 
 
@@ -228,8 +228,8 @@ def test_reminder_update_sets_and_clears_completed_at(db_session):
         due_at=datetime(2026, 12, 1, tzinfo=timezone.utc),
     )
 
-    repository.update(reminder, status="Termin?")
-    assert reminder.status == "Termin?"
+    repository.update(reminder, status="Termin\u00e9")
+    assert reminder.status == "Termin\u00e9"
     assert reminder.completed_at is not None
 
     repository.update(reminder, status="En cours")
@@ -267,7 +267,7 @@ def test_reminder_list_filters_by_author_status_and_archive(db_session):
     results = repository.list_by_client(
         client.id,
         author_user_id=user_a.id,
-        status="? faire",
+        status="\u00c0 faire",
     )
 
     assert [item.id for item in results] == [reminder_a.id]

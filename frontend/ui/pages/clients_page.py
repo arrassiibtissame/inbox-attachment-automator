@@ -6,6 +6,7 @@ from frontend.ui.components.page_header import PageHeader
 from frontend.ui.components.search_bar import SearchBar
 from frontend.ui.components.client_card import ClientCard
 from frontend.ui.dialogs.client_form_dialog import ClientFormDialog
+from frontend.ui.dialogs.client_detail_dialog import ClientDetailDialog
 from frontend.ui.styles import colors, typography
 
 from backend.database.connection import SessionLocal
@@ -578,54 +579,8 @@ class ClientsPage(ctk.CTkFrame):
     # --------------------------------------------------
 
     def open_client_folder(self, client):
-        dialog = ctk.CTkToplevel(self)
-        dialog.title(client["name"])
-        dialog.geometry("460x360")
-        dialog.resizable(False, False)
-        dialog.transient(self.winfo_toplevel())
-        dialog.grab_set()
-        dialog.configure(fg_color=colors.SURFACE)
+        ClientDetailDialog(self, self.current_user, client)
 
-        ctk.CTkLabel(
-            dialog,
-            text=client["name"],
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color=colors.TEXT_PRIMARY,
-            wraplength=400,
-        ).pack(padx=24, pady=(24, 12))
-
-        details = [
-            ("Code interne", client.get("internal_code")),
-            ("ICE", client.get("ice")),
-            ("IF", client.get("if_number")),
-            ("CNSS", client.get("cnss_number")),
-            ("RC", client.get("rc_number")),
-            ("Patente", client.get("patente")),
-            ("Téléphone", client.get("phone")),
-            ("Email", client.get("email")),
-            ("Responsable", client.get("responsible_name")),
-        ]
-
-        detail_text = "\n".join(
-            f"{label} : {value or 'Non renseigné'}"
-            for label, value in details
-        )
-
-        ctk.CTkLabel(
-            dialog,
-            text=detail_text,
-            text_color=colors.TEXT_SECONDARY,
-            justify="left",
-            anchor="w",
-        ).pack(fill="x", padx=32, pady=8)
-
-        ctk.CTkButton(
-            dialog,
-            text="Fermer",
-            command=dialog.destroy,
-            fg_color=colors.PRIMARY,
-            hover_color=colors.PRIMARY_HOVER,
-        ).pack(pady=16)
 
     # --------------------------------------------------
     # ARCHIVAGE

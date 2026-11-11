@@ -9,7 +9,7 @@ from backend.database.models.client_reminder import ClientReminder
 class ClientReminderRepository:
     """Database operations for client reminders."""
 
-    ALLOWED_STATUSES = ("? faire", "En cours", "Termin?")
+    ALLOWED_STATUSES = ("\u00c0 faire", "En cours", "Termin\u00e9")
 
     def __init__(self, session: Session):
         self.session = session
@@ -27,7 +27,7 @@ class ClientReminderRepository:
         title: str,
         due_at: datetime,
         description: str | None = None,
-        status: str = "? faire",
+        status: str = "\u00c0 faire",
     ) -> ClientReminder:
         title = title.strip()
         if not title:
@@ -44,7 +44,7 @@ class ClientReminderRepository:
             status=status,
             completed_at=(
                 datetime.now(due_at.tzinfo)
-                if status == "Termin?"
+                if status == "Termin\u00e9"
                 else None
             ),
         )
@@ -128,7 +128,7 @@ class ClientReminderRepository:
             setattr(reminder, field, value)
 
         if "status" in changes:
-            if changes["status"] == "Termin?":
+            if changes["status"] == "Termin\u00e9":
                 reminder.completed_at = datetime.now(
                     reminder.due_at.tzinfo
                 )
