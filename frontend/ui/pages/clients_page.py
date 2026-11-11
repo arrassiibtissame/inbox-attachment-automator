@@ -1,13 +1,17 @@
-﻿
-import customtkinter as ctk
+﻿import customtkinter as ctk
+from types import SimpleNamespace
+from sqlalchemy.exc import IntegrityError
 
 from frontend.ui.components.page_header import PageHeader
 from frontend.ui.components.search_bar import SearchBar
 from frontend.ui.components.client_card import ClientCard
 from frontend.ui.dialogs.client_form_dialog import ClientFormDialog
 from frontend.ui.styles import colors, typography
+
 from backend.database.connection import SessionLocal
+from backend.database.models.user import UserRole
 from backend.services.client_service import ClientService
+
 
 class ClientsPage(ctk.CTkFrame):
 
@@ -15,23 +19,21 @@ class ClientsPage(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
 
         self.current_user = current_user
+        self.is_admin = current_user.role == UserRole.ADMIN
 
         self.active_filter = "all"
+        self.status_filter = "active"
         self.search_query = ""
-
-        # Chargement des clients depuis la base de données
-        self.clients = self._load_clients()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        # En-tête
-        header = PageHeader(
+        self.header = PageHeader(
             self,
             title="Clients",
             subtitle="Gérez vos clients et leurs documents centralisés.",
         )
-        header.grid(
+        self.header.grid(
             row=0,
             column=0,
             sticky="ew",
@@ -39,8 +41,10 @@ class ClientsPage(ctk.CTkFrame):
             pady=(30, 20),
         )
 
-        # Barre de recherche et bouton d'ajout
-        toolbar = ctk.CTkFrame(self, fg_color="transparent")
+        toolbar = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
         toolbar.grid(
             row=1,
             column=0,
@@ -52,7 +56,7 @@ class ClientsPage(ctk.CTkFrame):
 
         self.search_bar = SearchBar(
             toolbar,
-            placeholder="Rechercher par nom, contact, email, téléphone...",
+            placeholder="Rechercher par nom, code, ICE, IF, contact...",
             on_search=self.filter_clients,
             on_filter=self.show_filter_message,
         )
@@ -61,6 +65,22 @@ class ClientsPage(ctk.CTkFrame):
             column=0,
             sticky="ew",
             padx=(0, 12),
+        )
+
+        self.status_filter_button = ctk.CTkButton(
+            toolbar,
+            text="Statut : Actifs",
+            height=44,
+            width=135,
+            corner_radius=10,
+            fg_color=colors.SURFACE_ALT,
+            hover_color=colors.BORDER,
+            text_color=colors.TEXT_PRIMARY,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.show_status_filter_dialog,
+        )
+        self.status_filter_button.grid(
+            row=0, column=1, padx=(0, 10)
         )
 
         ctk.CTkButton(
@@ -76,9 +96,8 @@ class ClientsPage(ctk.CTkFrame):
                 weight="bold",
             ),
             command=self.open_add_client_form,
-        ).grid(row=0, column=1)
+        ).grid(row=0, column=2)
 
-        # Zone défilante des cartes
         self.content = ctk.CTkScrollableFrame(
             self,
             fg_color="transparent",
@@ -96,40 +115,159 @@ class ClientsPage(ctk.CTkFrame):
             weight=1,
             uniform="clients",
         )
-        self.render_clients(self.clients)
 
+        self.current_page = 1
+        self.page_size = 30
+        self.total_clients = 0
+        self.total_pages = 1
+
+        self.pagination_bar = ctk.CTkFrame(
+            self,
+            fg_color="transparent",
+        )
+        self.pagination_bar.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=32,
+            pady=(0, 14),
+        )
+        self.pagination_bar.grid_columnconfigure(1, weight=1)
+
+        self.previous_page_button = ctk.CTkButton(
+            self.pagination_bar,
+            text="? Pr?c?dent",
+            width=110,
+            height=34,
+            fg_color=colors.SURFACE_ALT,
+            hover_color=colors.BORDER,
+            text_color=colors.TEXT_PRIMARY,
+            command=lambda: self.change_page(-1),
+        )
+        self.previous_page_button.grid(row=0, column=0, sticky="w")
+
+        self.pagination_label = ctk.CTkLabel(
+            self.pagination_bar,
+            text="Page 1 / 1 ? 0 client",
+            font=ctk.CTkFont(size=12),
+            text_color=colors.TEXT_SECONDARY,
+        )
+        self.pagination_label.grid(row=0, column=1, padx=12)
+
+        self.next_page_button = ctk.CTkButton(
+            self.pagination_bar,
+            text="Suivant ?",
+            width=110,
+            height=34,
+            fg_color=colors.SURFACE_ALT,
+            hover_color=colors.BORDER,
+            text_color=colors.TEXT_PRIMARY,
+            command=lambda: self.change_page(1),
+        )
+        self.next_page_button.grid(row=0, column=2, sticky="e")
+
+        self._display_current_page()
+
+    # --------------------------------------------------
+    # CHARGEMENT DEPUIS LA BASE DE DONNEES
+    # --------------------------------------------------
 
     def _load_clients(self):
         session = SessionLocal()
 
         try:
             service = ClientService(session)
-            clients = service.list_clients(self.current_user)
 
-            return [
-                {
+            rows, total = service.list_clients_page(
+                self.current_user,
+                page=self.current_page,
+                page_size=self.page_size,
+                status=self.status_filter,
+                document_filter=self.active_filter,
+                search=self.search_query,
+            )
+
+            result = []
+
+            for client, document_count in rows:
+                responsible = client.responsible_user
+
+                result.append({
                     "id": client.id,
-                    "name": client.company_name,
+                    "name": client.company_name or "",
+                    "internal_code": client.internal_code or "",
+                    "ice": client.ice or "",
+                    "tax_id": client.ice or "",
+                    "if_number": client.if_number or "",
+                    "cnss_number": client.cnss_number or "",
+                    "rc_number": client.rc_number or "",
+                    "rc_city": client.rc_city or "",
+                    "patente": client.patente or "",
+                    "address": client.address or "",
                     "contact": client.contact_name or "",
                     "email": client.email or "",
                     "phone": client.phone_number or "",
-                    "tax_id": client.ice or "",
-                    "document_count": 0,
-                    "last_activity": "Aucune activité",
+                    "responsible_user_id": client.responsible_user_id,
                     "responsible_name": (
-                        client.responsible_user.full_name
-                        if client.responsible_user
-                        else "Non attribué"
+                        responsible.full_name
+                        if responsible
+                        else "Non attribu?"
                     ),
-                }
-                for client in clients
-            ]
+                    "is_active": bool(client.is_active),
+                    "document_count": int(document_count),
+                    "last_activity": "Aucune activit?",
+                })
+
+            return result, total
 
         finally:
             session.close()
 
+    def _display_current_page(self):
+        self.clients, self.total_clients = self._load_clients()
+
+        self.total_pages = max(
+            1,
+            (self.total_clients + self.page_size - 1) // self.page_size,
+        )
+
+        if self.current_page > self.total_pages:
+            self.current_page = self.total_pages
+            self.clients, self.total_clients = self._load_clients()
+
+        self.render_clients(self.clients)
+
+        self.pagination_label.configure(
+            text=(
+                f"Page {self.current_page} / {self.total_pages}"
+                f" ? {self.total_clients} client(s)"
+            )
+        )
+
+        self.previous_page_button.configure(
+            state="normal" if self.current_page > 1 else "disabled"
+        )
+        self.next_page_button.configure(
+            state=(
+                "normal"
+                if self.current_page < self.total_pages
+                else "disabled"
+            )
+        )
+
+    def change_page(self, direction):
+        target_page = self.current_page + direction
+
+        if 1 <= target_page <= self.total_pages:
+            self.current_page = target_page
+            self._display_current_page()
+
+    def _refresh_clients(self):
+        self.current_page = 1
+        self._display_current_page()
+
     # --------------------------------------------------
-    # AFFICHAGE DES CLIENTS
+    # AFFICHAGE
     # --------------------------------------------------
 
     def render_clients(self, clients):
@@ -139,7 +277,7 @@ class ClientsPage(ctk.CTkFrame):
         if not clients:
             ctk.CTkLabel(
                 self.content,
-                text="Aucun client ne correspond à votre recherche.",
+                text="Aucun client ne correspond ? votre recherche.",
                 font=ctk.CTkFont(size=14),
                 text_color=colors.TEXT_SECONDARY,
             ).grid(
@@ -154,32 +292,32 @@ class ClientsPage(ctk.CTkFrame):
         for index, client in enumerate(clients):
             row = index // 2
             column = index % 2
+            is_archived = not client["is_active"]
 
             card = ClientCard(
                 self.content,
                 name=client["name"],
-                contact=client.get(
-                    "contact",
-                    "Contact non renseigné",
-                ),
-                phone=client.get("phone", ""),
-                tax_id=client.get("tax_id", ""),
-                email=client.get(
-                    "email",
-                    "Email non renseigné",
-                ),
-                responsible_name=client.get(
-                    "responsible_name",
-                    "Non attribué",
-),
-                document_count=client.get("document_count", 0),
-                last_activity=client.get(
-                    "last_activity",
-                    "Aucune activité",
-                ),
+                contact=client["contact"],
+                phone=client["phone"],
+                tax_id=client["ice"],
+                email=client["email"],
+                responsible_name=client["responsible_name"],
+                document_count=client["document_count"],
+                last_activity=client["last_activity"],
+                is_archived=is_archived,
                 on_open=lambda item=client: self.open_client_folder(item),
-                on_edit=lambda item=client: self.open_edit_client_form(item),
-                on_delete=lambda item=client: self.confirm_delete_client(item),
+                on_edit=(
+                    None if is_archived
+                    else lambda item=client: self.open_edit_client_form(item)
+                ),
+                on_delete=(
+                    None if is_archived
+                    else lambda item=client: self.confirm_delete_client(item)
+                ),
+                on_restore=(
+                    (lambda item=client: self.confirm_restore_client(item))
+                    if is_archived else None
+                ),
             )
 
             card.grid(
@@ -196,41 +334,8 @@ class ClientsPage(ctk.CTkFrame):
 
     def filter_clients(self, query=""):
         self.search_query = query.strip()
-        query_lower = self.search_query.casefold()
-
-        filtered = []
-
-        for client in self.clients:
-            searchable_text = " ".join([
-                str(client.get("name", "")),
-                str(client.get("contact", "")),
-                str(client.get("email", "")),
-                str(client.get("phone", "")),
-                str(client.get("tax_id", "")),
-            ]).casefold()
-
-            if query_lower and query_lower not in searchable_text:
-                continue
-
-            document_count = int(
-                client.get("document_count", 0) or 0
-            )
-
-            if (
-                self.active_filter == "with_documents"
-                and document_count == 0
-            ):
-                continue
-
-            if (
-                self.active_filter == "without_documents"
-                and document_count > 0
-            ):
-                continue
-
-            filtered.append(client)
-
-        self.render_clients(filtered)
+        self.current_page = 1
+        self._display_current_page()
 
     def show_filter_message(self):
         dialog = ctk.CTkToplevel(self)
@@ -290,6 +395,73 @@ class ClientsPage(ctk.CTkFrame):
             command=apply_filter,
         ).pack(fill="x", padx=22, pady=(18, 22))
 
+    def show_status_filter_dialog(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Statut des clients")
+        dialog.geometry("350x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.configure(fg_color=colors.SURFACE)
+
+        ctk.CTkLabel(
+            dialog,
+            text="Statut des clients",
+            font=ctk.CTkFont(size=19, weight="bold"),
+            text_color=colors.TEXT_PRIMARY,
+        ).pack(anchor="w", padx=22, pady=(22, 5))
+
+        ctk.CTkLabel(
+            dialog,
+            text="Choisissez les clients ? afficher.",
+            font=ctk.CTkFont(size=12),
+            text_color=colors.TEXT_SECONDARY,
+        ).pack(anchor="w", padx=22, pady=(0, 16))
+
+        status_var = ctk.StringVar(value=self.status_filter)
+
+        options = [
+            ("active", "Actifs"),
+            ("archived", "Archiv?s"),
+            ("all", "Tous les clients"),
+        ]
+
+        for value, label in options:
+            ctk.CTkRadioButton(
+                dialog,
+                text=label,
+                variable=status_var,
+                value=value,
+                radiobutton_width=18,
+                radiobutton_height=18,
+                fg_color=colors.PRIMARY,
+                hover_color=colors.PRIMARY_HOVER,
+                text_color=colors.TEXT_PRIMARY,
+            ).pack(anchor="w", padx=24, pady=8)
+
+        def apply_status():
+            self.status_filter = status_var.get()
+
+            labels = {
+                "active": "Statut : Actifs",
+                "archived": "Statut : Archiv?s",
+                "all": "Statut : Tous",
+            }
+            self.status_filter_button.configure(
+                text=labels[self.status_filter]
+            )
+            self.filter_clients(self.search_query)
+            dialog.destroy()
+
+        ctk.CTkButton(
+            dialog,
+            text="Appliquer",
+            height=38,
+            fg_color=colors.PRIMARY,
+            hover_color=colors.PRIMARY_HOVER,
+            command=apply_status,
+        ).pack(fill="x", padx=22, pady=(18, 22))
+
     # --------------------------------------------------
     # AJOUT ET MODIFICATION
     # --------------------------------------------------
@@ -298,64 +470,107 @@ class ClientsPage(ctk.CTkFrame):
         self.open_client_form()
 
     def open_edit_client_form(self, client):
+        if not client.get('is_active', True):
+            return
         self.open_client_form(client)
 
     def open_client_form(self, client=None):
+        if client is not None and not client.get('is_active', True):
+            return
         is_editing = client is not None
 
+        employees = []
+
+        if self.is_admin and not is_editing:
+            session = SessionLocal()
+
+            try:
+                service = ClientService(session)
+                database_employees = service.list_available_employees(
+                    self.current_user
+                )
+
+                employees = [
+                    SimpleNamespace(
+                        id=employee.id,
+                        full_name=employee.full_name,
+                    )
+                    for employee in database_employees
+                ]
+
+            finally:
+                session.close()
+
         def save_client(data):
-            name = data["name"].strip()
-            tax_id = data.get("tax_id", "").strip()
+            session = SessionLocal()
 
-            # Vérifier les doublons en excluant le client modifié
-            for existing_client in self.clients:
-                if existing_client is client:
-                    continue
+            changes = {
+                "company_name": data.get("name"),
+                "internal_code": data.get("internal_code"),
+                "ice": data.get("ice"),
+                "if_number": data.get("if_number"),
+                "cnss_number": data.get("cnss_number"),
+                "rc_number": data.get("rc_number"),
+                "rc_city": data.get("rc_city"),
+                "patente": data.get("patente"),
+                "address": data.get("address"),
+                "contact_name": data.get("contact"),
+                "email": data.get("email"),
+                "phone_number": data.get("phone"),
+            }
 
-                if (
-                    existing_client["name"].strip().casefold()
-                    == name.casefold()
-                ):
-                    dialog.message.configure(
-                        text="Cette société existe déjà dans la liste."
+            try:
+                service = ClientService(session)
+
+                if is_editing:
+                    updated_client = service.update_client(
+                        self.current_user,
+                        client["id"],
+                        **changes,
                     )
-                    return
 
-                existing_tax_id = existing_client.get(
-                    "tax_id", ""
-                ).strip()
+                    if updated_client is None:
+                        raise PermissionError(
+                            "Client introuvable ou accès non autorisé."
+                        )
 
-                if (
-                    tax_id
-                    and existing_tax_id
-                    and existing_tax_id.casefold() == tax_id.casefold()
-                ):
-                    dialog.message.configure(
-                        text="Cet identifiant fiscal existe déjà."
+                else:
+                    if self.is_admin:
+                        changes["responsible_user_id"] = (
+                            data.get("responsible_user_id")
+                        )
+
+                    service.create_client(
+                        self.current_user,
+                        **changes,
                     )
-                    return
 
-            if is_editing:
-                client.update(data)
-            else:
-                data["document_count"] = 0
-                data["last_activity"] = "Aucune activité"
-                self.clients.append(data)
+                session.commit()
 
-            # Fermer le formulaire après un enregistrement valide
-            dialog.destroy()
+            except IntegrityError as error:
+                session.rollback()
 
-            # Réinitialiser recherche et filtres
-            self.active_filter = "all"
-            self.search_query = ""
-            self.search_bar.search_input.delete(0, "end")
+                raise ValueError(
+                    "Le code interne ou l'ICE existe déjà. "
+                    "Vérifiez ces deux champs."
+                ) from error
 
-            self.filter_clients("")
+            except Exception:
+                session.rollback()
+                raise
+
+            finally:
+                session.close()
+
+            self._refresh_clients()
+            return True
 
         dialog = ClientFormDialog(
             self,
             on_save=save_client,
             client=client,
+            employees=employees,
+            is_admin=self.is_admin,
         )
 
     # --------------------------------------------------
@@ -365,7 +580,7 @@ class ClientsPage(ctk.CTkFrame):
     def open_client_folder(self, client):
         dialog = ctk.CTkToplevel(self)
         dialog.title(client["name"])
-        dialog.geometry("420x280")
+        dialog.geometry("460x360")
         dialog.resizable(False, False)
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
@@ -376,21 +591,33 @@ class ClientsPage(ctk.CTkFrame):
             text=client["name"],
             font=ctk.CTkFont(size=20, weight="bold"),
             text_color=colors.TEXT_PRIMARY,
-            wraplength=360,
-        ).pack(padx=24, pady=(28, 12))
+            wraplength=400,
+        ).pack(padx=24, pady=(24, 12))
+
+        details = [
+            ("Code interne", client.get("internal_code")),
+            ("ICE", client.get("ice")),
+            ("IF", client.get("if_number")),
+            ("CNSS", client.get("cnss_number")),
+            ("RC", client.get("rc_number")),
+            ("Patente", client.get("patente")),
+            ("Téléphone", client.get("phone")),
+            ("Email", client.get("email")),
+            ("Responsable", client.get("responsible_name")),
+        ]
+
+        detail_text = "\n".join(
+            f"{label} : {value or 'Non renseigné'}"
+            for label, value in details
+        )
 
         ctk.CTkLabel(
             dialog,
-            text=(
-                f'{client.get("document_count", 0)} document(s)\n'
-                f'Dernière activité : {client.get("last_activity", "Aucune activité")}\n'
-                f'Identifiant fiscal : {client.get("tax_id") or "Non renseigné"}\n'
-                f'Téléphone : {client.get("phone") or "Non renseigné"}'
-            ),
+            text=detail_text,
             text_color=colors.TEXT_SECONDARY,
-            justify="center",
-            wraplength=360,
-        ).pack(padx=24, pady=8)
+            justify="left",
+            anchor="w",
+        ).pack(fill="x", padx=32, pady=8)
 
         ctk.CTkButton(
             dialog,
@@ -398,24 +625,25 @@ class ClientsPage(ctk.CTkFrame):
             command=dialog.destroy,
             fg_color=colors.PRIMARY,
             hover_color=colors.PRIMARY_HOVER,
-        ).pack(pady=18)
+        ).pack(pady=16)
 
     # --------------------------------------------------
-    # SUPPRESSION
+    # ARCHIVAGE
     # --------------------------------------------------
 
     def confirm_delete_client(self, client):
         dialog = ctk.CTkToplevel(self)
-        dialog.title("Confirmer la suppression")
+        dialog.title("Archiver le client")
         dialog.geometry("430x240")
         dialog.resizable(False, False)
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        dialog.configure(fg_color=colors.SURFACE)
         dialog.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             dialog,
-            text="Supprimer ce client ?",
+            text="Archiver ce client ?",
             font=ctk.CTkFont(size=19, weight="bold"),
             text_color=colors.TEXT_PRIMARY,
         ).grid(
@@ -428,8 +656,8 @@ class ClientsPage(ctk.CTkFrame):
         ctk.CTkLabel(
             dialog,
             text=(
-                f'Voulez-vous retirer « {client["name"]} » de la liste ?\n'
-                "Les documents ne seront pas supprimés."
+                f'Voulez-vous archiver « {client["name"]} » ?\n'
+                "Ses données et ses documents seront conservés."
             ),
             text_color=colors.TEXT_SECONDARY,
             wraplength=370,
@@ -441,12 +669,25 @@ class ClientsPage(ctk.CTkFrame):
             pady=8,
         )
 
+        self.archive_error = ctk.CTkLabel(
+            dialog,
+            text="",
+            text_color=colors.ERROR,
+            wraplength=370,
+        )
+        self.archive_error.grid(
+            row=2,
+            column=0,
+            padx=20,
+            pady=4,
+        )
+
         actions = ctk.CTkFrame(
             dialog,
             fg_color="transparent",
         )
         actions.grid(
-            row=2,
+            row=3,
             column=0,
             sticky="ew",
             padx=24,
@@ -468,19 +709,160 @@ class ClientsPage(ctk.CTkFrame):
             padx=(0, 6),
         )
 
-        def delete_client():
-            if client in self.clients:
-                self.clients.remove(client)
+        def archive_client():
+            session = SessionLocal()
 
-            self.filter_clients(self.search_query)
+            try:
+                service = ClientService(session)
+
+                archived = service.archive_client(
+                    self.current_user,
+                    client["id"],
+                )
+
+                if archived is None:
+                    raise PermissionError(
+                        "Client introuvable ou accès non autorisé."
+                    )
+
+                session.commit()
+
+            except Exception as error:
+                session.rollback()
+                self.archive_error.configure(text=str(error))
+                return
+
+            finally:
+                session.close()
+
+            self._refresh_clients()
             dialog.destroy()
 
         ctk.CTkButton(
             actions,
-            text="Confirmer la suppression",
+            text="Confirmer l'archivage",
             fg_color=colors.ERROR,
             hover_color="#B8323B",
-            command=delete_client,
+            command=archive_client,
+        ).grid(
+            row=0,
+            column=1,
+            sticky="ew",
+            padx=(6, 0),
+        )
+
+    def confirm_restore_client(self, client):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("R?activer le client")
+        dialog.geometry("430x240")
+        dialog.resizable(False, False)
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.configure(fg_color=colors.SURFACE)
+        dialog.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            dialog,
+            text="R?activer ce client ?",
+            font=ctk.CTkFont(size=19, weight="bold"),
+            text_color=colors.TEXT_PRIMARY,
+        ).grid(
+            row=0,
+            column=0,
+            padx=24,
+            pady=(24, 10),
+        )
+
+        ctk.CTkLabel(
+            dialog,
+            text=(
+                f'Voulez-vous r?activer ? {client["name"]} ? ?\n'
+                "Ses informations et son responsable seront conserv?s."
+            ),
+            text_color=colors.TEXT_SECONDARY,
+            wraplength=370,
+            justify="center",
+        ).grid(
+            row=1,
+            column=0,
+            padx=24,
+            pady=8,
+        )
+
+        error_label = ctk.CTkLabel(
+            dialog,
+            text="",
+            text_color=colors.ERROR,
+            wraplength=370,
+        )
+        error_label.grid(
+            row=2,
+            column=0,
+            padx=20,
+            pady=4,
+        )
+
+        actions = ctk.CTkFrame(
+            dialog,
+            fg_color="transparent",
+        )
+        actions.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=24,
+            pady=18,
+        )
+        actions.grid_columnconfigure((0, 1), weight=1)
+
+        ctk.CTkButton(
+            actions,
+            text="Annuler",
+            fg_color=colors.SURFACE_ALT,
+            hover_color=colors.BORDER,
+            text_color=colors.TEXT_PRIMARY,
+            command=dialog.destroy,
+        ).grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=(0, 6),
+        )
+
+        def restore_client():
+            session = SessionLocal()
+
+            try:
+                service = ClientService(session)
+                restored = service.restore_client(
+                    self.current_user,
+                    client["id"],
+                )
+
+                if restored is None:
+                    raise PermissionError(
+                        "Client introuvable ou acc?s non autoris?."
+                    )
+
+                session.commit()
+
+            except Exception as error:
+                session.rollback()
+                error_label.configure(text=str(error))
+                return
+
+            finally:
+                session.close()
+
+            self._refresh_clients()
+            dialog.destroy()
+
+        ctk.CTkButton(
+            actions,
+            text="Confirmer la r?activation",
+            fg_color=colors.PRIMARY,
+            hover_color=colors.PRIMARY_HOVER,
+            command=restore_client,
         ).grid(
             row=0,
             column=1,

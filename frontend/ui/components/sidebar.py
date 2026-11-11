@@ -3,6 +3,7 @@ from pathlib import Path
 import profile
 import customtkinter as ctk
 from PIL import Image
+from frontend.ui.styles import colors
 
 
 BASE = Path(__file__).resolve().parents[2]
@@ -10,13 +11,13 @@ ASSETS_DIR = BASE / "assets"
 ICONS_DIR = Path(__file__).resolve().parent / "icons"
 LOGO_PATH = ASSETS_DIR / "logo3.png"
 
-NAVY = "#122943"
-NAVY_DEEP = "#0B2038"
-HOVER = "#1B3853"
-ACTIVE = "#10445A"
-TEAL = "#0DB5AA"
-WHITE = "#FFFFFF"
-MUTED = "#9EB0C2"
+NAVY = colors.SIDEBAR_BG
+NAVY_DEEP = colors.SECONDARY
+HOVER = colors.SIDEBAR_HOVER
+ACTIVE = colors.SIDEBAR_ACTIVE
+TEAL = colors.ACCENT
+WHITE = colors.SIDEBAR_TEXT
+MUTED = colors.SIDEBAR_TEXT_MUTED
 FONT = "DM Sans"
 
 
@@ -134,7 +135,7 @@ class Sidebar(ctk.CTkFrame):
             name,
             text=" ONE",
             font=(FONT, 16, "bold"),
-            text_color="#20C8BD",
+            text_color=colors.ACCENT,
         ).pack(side="left")
 
 
@@ -145,16 +146,16 @@ class Sidebar(ctk.CTkFrame):
             width=40,
             height=40,
             font=(FONT, 24, "bold"),
-            text_color="#20C8BD",
+            text_color=colors.ACCENT,
             fg_color="transparent",
         ).grid(row=0, column=0, padx=(4, 11))
 
     def _build_workspace(self):
         card = ctk.CTkFrame(
             self,
-            fg_color="#203B55",
+            fg_color=colors.SIDEBAR_HOVER,
             border_width=1,
-            border_color="#314C66",
+            border_color=colors.SIDEBAR_ACTIVE,
             corner_radius=12,
         )
         card.grid(
@@ -166,41 +167,15 @@ class Sidebar(ctk.CTkFrame):
         )
         card.grid_columnconfigure(1, weight=1)
 
-        avatar = ctk.CTkFrame(
-            card,
-            width=40,
-            height=40,
-            corner_radius=9,
-            fg_color="#145064",
-        )
-        avatar.grid(row=0, column=0, padx=(10, 10), pady=12)
-        avatar.grid_propagate(False)
-
-        self.profile_avatar = ctk.CTkLabel(
-            avatar,
-            text="U",
-
-            font=(FONT, 10, "bold"),
-            text_color=WHITE,
-            fg_color="#168FB8",
-            width=36,
-            height=36,
-            corner_radius=18,
-        )
-        self.profile_avatar.grid(
-            row=0,
-            column=0,
-            padx=(0, 10),
-        )
 
         copy = ctk.CTkFrame(card, fg_color="transparent")
-        copy.grid(row=0, column=1, sticky="ew", pady=10)
+        copy.grid(row=0, column=0, sticky="ew",padx=12, pady=10)
 
         self.welcome_label = ctk.CTkLabel(
             copy,
             text="Bienvenue",
             font=(FONT, 9, "bold"),
-            text_color="#8FA6BF",
+            text_color=colors.SIDEBAR_TEXT_MUTED,
             anchor="w",
         )
         self.welcome_label.pack(anchor="w")
@@ -218,15 +193,15 @@ class Sidebar(ctk.CTkFrame):
             card,
             text="›",
             font=(FONT, 23),
-            text_color="#819AB4",
-        ).grid(row=0, column=2, padx=(4, 12))
+            text_color=colors.SIDEBAR_TEXT_MUTED,
+        ).grid(row=0, column=1, padx=(4, 12))
 
     def _build_navigation(self):
         ctk.CTkLabel(
             self,
             text="MENU",
             font=(FONT, 9, "bold"),
-            text_color="#718BA6",
+            text_color=colors.SIDEBAR_TEXT_MUTED,
             anchor="w",
         ).grid(
             row=2,
@@ -292,6 +267,7 @@ class Sidebar(ctk.CTkFrame):
     def set_user(self, current_user):
         """Actualiser le menu selon le rôle de l'utilisateur."""
         self.current_user = current_user
+        self.update_profile()
 
         for button in self.buttons.values():
             button.destroy()
@@ -377,9 +353,9 @@ class Sidebar(ctk.CTkFrame):
 
         automation = ctk.CTkFrame(
             bottom,
-            fg_color="#103247",
+            fg_color=colors.SECONDARY,
             border_width=1,
-            border_color="#164B5B",
+            border_color=colors.SIDEBAR_ACTIVE,
             corner_radius=12,
         )
         automation.grid(row=0, column=0, sticky="ew")
@@ -390,7 +366,7 @@ class Sidebar(ctk.CTkFrame):
             width=36,
             height=36,
             corner_radius=8,
-            fg_color="#145064",
+            fg_color=colors.SIDEBAR_HOVER,
         )
         symbol.grid(row=0, column=0, padx=(10, 9), pady=10)
         symbol.grid_propagate(False)
@@ -399,7 +375,7 @@ class Sidebar(ctk.CTkFrame):
             symbol,
             text="✦",
             font=(FONT, 18, "bold"),
-            text_color="#45D9CE",
+            text_color=colors.ACCENT,
         ).place(relx=0.5, rely=0.5, anchor="center")
 
         status_text = ctk.CTkFrame(
@@ -412,7 +388,7 @@ class Sidebar(ctk.CTkFrame):
             status_text,
             text="Automatisation",
             font=(FONT, 10, "bold"),
-            text_color="#E6F1F7",
+            text_color=colors.SIDEBAR_TEXT,
             anchor="w",
         ).pack(anchor="w")
 
@@ -420,7 +396,7 @@ class Sidebar(ctk.CTkFrame):
             status_text,
             text="État à configurer",
             font=(FONT, 8),
-            text_color="#8FA6BF",
+            text_color=colors.SIDEBAR_TEXT_MUTED,
             anchor="w",
         ).pack(anchor="w", pady=(3, 0))
 
@@ -429,7 +405,7 @@ class Sidebar(ctk.CTkFrame):
             width=7,
             height=7,
             corner_radius=4,
-            fg_color="#28D7A0",
+            fg_color=colors.SUCCESS,
         ).grid(row=0, column=2, padx=10)
 
         profile = ctk.CTkFrame(
@@ -445,26 +421,20 @@ class Sidebar(ctk.CTkFrame):
         )
         profile.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkFrame(
-            profile,
-            width=36,
-            height=36,
-            corner_radius=18,
-            fg_color="#168FB8",
-        ).grid(row=0, column=0, padx=(0, 10))
+
 
         avatar = ctk.CTkLabel(
             profile,
             text="U",
             font=(FONT, 10, "bold"),
             text_color=WHITE,
-            fg_color="#168FB8",
+            fg_color=colors.ACCENT_BLUE,
             width=36,
             height=36,
             corner_radius=18,
         )
         self.profile_avatar = avatar
-        avatar.place_forget()
+
 
         # Avatar textuel au-dessus du cercle
         avatar.grid(row=0, column=0, padx=(0, 10))
@@ -479,7 +449,7 @@ class Sidebar(ctk.CTkFrame):
             user_text,
             text="Utilisateur",
             font=(FONT, 11, "bold"),
-            text_color="#F4F8FB",
+            text_color=colors.SIDEBAR_TEXT,
             anchor="w",
         )
         self.profile_name.pack(anchor="w")
@@ -488,7 +458,7 @@ class Sidebar(ctk.CTkFrame):
             user_text,
             text="Compte local",
             font=(FONT, 9),
-            text_color="#8FA6BF",
+            text_color=colors.SIDEBAR_TEXT_MUTED,
             anchor="w",
         )
         self.profile_email.pack(anchor="w", pady=(3, 0))
@@ -500,14 +470,14 @@ class Sidebar(ctk.CTkFrame):
             height=30,
             fg_color="transparent",
             hover_color=HOVER,
-            text_color="#8FA6BF",
+            text_color=colors.SIDEBAR_TEXT_MUTED,
             command=self.on_logout,
         ).grid(row=0, column=2)
 
 
 
-        def update_profile(self):
-         """Actualiser le profil selon le compte connecté."""
+    def update_profile(self):
+        """Actualiser le profil selon le compte connecté."""
 
         if self.current_user is None:
             self.profile_avatar.configure(text="U")

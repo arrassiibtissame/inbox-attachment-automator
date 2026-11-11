@@ -24,6 +24,7 @@ class DocumentReceiptRepository:
         source_part_id: str | None = None,
         sender: str | None = None,
         source_metadata: dict | None = None,
+        uploaded_by_user_id: int | None = None,
     ) -> DocumentReceipt:
         receipt = DocumentReceipt(
             document_id=document_id,
@@ -33,6 +34,7 @@ class DocumentReceiptRepository:
             source_part_id=source_part_id,
             sender=sender,
             source_metadata=source_metadata,
+            uploaded_by_user_id=uploaded_by_user_id,
         )
 
         self.session.add(receipt)

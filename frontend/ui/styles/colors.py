@@ -1,47 +1,51 @@
-
 # Palette officielle de FIDOMEK ONE
-# Design hybride : navigation sombre et contenu clair
+# Identite : Warm Professional
+# Theme commun : ivoire, sauge et accents doux
 
-# Navigation et couleurs principales
-PRIMARY = "#087F8C"
-PRIMARY_HOVER = "#066B75"
-PRIMARY_LIGHT = "#DDF5F2"
+# Couleurs principales
+PRIMARY = "#789783"
+PRIMARY_HOVER = "#617F6B"
+PRIMARY_LIGHT = "#E7F0E8"
 
-# Sidebar : bleu nuit
-SECONDARY = "#14263F"
-SIDEBAR_BG = "#14263F"
-SIDEBAR_HOVER = "#243751"
-SIDEBAR_ACTIVE = "#29465E"
-SIDEBAR_TEXT = "#E7EEF7"
-SIDEBAR_TEXT_MUTED = "#A9B8CC"
+# Navigation sombre bleu-vert profond
+SECONDARY = "#1B3933"
+SIDEBAR_BG = "#1B3933"
+SIDEBAR_HOVER = "#294A42"
+SIDEBAR_ACTIVE = "#315B50"
+SIDEBAR_TEXT = "#F1F5F1"
+SIDEBAR_TEXT_MUTED = "#B4C6BD"
 
-# Accent turquoise
-ACCENT = "#12B8A6"
-ACCENT_LIGHT = "#E0F7F3"
+# Accents
+ACCENT = "#78A991"
+ACCENT_LIGHT = "#E8F2EC"
 
-# Arrière-plans et surfaces
-BACKGROUND = "#F4F7FB"
+# Arriere-plans et surfaces
+BACKGROUND = "#F7F6F2"
 SURFACE = "#FFFFFF"
-SURFACE_ALT = "#EDF2F7"
+SURFACE_ALT = "#F0F1EB"
 
 # Textes
-TEXT_PRIMARY = "#1C2B3A"
-TEXT_SECONDARY = "#617186"
-TEXT_MUTED = "#8A98A9"
+TEXT_PRIMARY = "#293A34"
+TEXT_SECONDARY = "#68776F"
+TEXT_MUTED = "#929C95"
 
 # Bordures
-BORDER = "#E1E8F0"
+BORDER = "#E5E7E0"
 
 # Statuts
-SUCCESS = "#168568"
-SUCCESS_LIGHT = "#E4F7F0"
+SUCCESS = "#43866A"
+SUCCESS_LIGHT = "#E6F2E9"
 
-WARNING = "#B7791F"
-WARNING_LIGHT = "#FFF4DE"
+WARNING = "#B98746"
+WARNING_LIGHT = "#F8F0E2"
 
-ERROR = "#D64550"
-ERROR_LIGHT = "#FDECEE"
+ERROR = "#C96D6D"
+ERROR_LIGHT = "#F8EAEA"
 
-# Accent secondaire
-ACCENT_PURPLE = "#7967C7"
-ACCENT_PURPLE_LIGHT = "#F0ECFF"
+# Accent secondaire : lavande
+ACCENT_PURPLE = "#9A8BBE"
+ACCENT_PURPLE_LIGHT = "#F0ECF7"
+
+# Accent secondaire : bleu brume
+ACCENT_BLUE = "#8DAFC2"
+ACCENT_BLUE_LIGHT = "#EAF1F5"

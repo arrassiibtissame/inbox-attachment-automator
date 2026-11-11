@@ -1,8 +1,8 @@
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.connection import Base
@@ -63,6 +63,31 @@ class Client(Base):
 
     patente: Mapped[str | None] = mapped_column(
         String(50),
+        nullable=True,
+    )
+
+    legal_form: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    business_sector: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+    )
+
+    incorporation_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    tax_regime: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    collaboration_start_date: Mapped[date | None] = mapped_column(
+        Date,
         nullable=True,
     )
 

@@ -1,8 +1,10 @@
 ﻿
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, joinedload
 
 from backend.database.models.client import Client
+from backend.database.models.document import Document
+from backend.database.models.user import User
 
 
 class ClientRepository:
@@ -23,6 +25,11 @@ class ClientRepository:
         rc_number: str | None = None,
         rc_city: str | None = None,
         patente: str | None = None,
+        legal_form: str | None = None,
+        business_sector: str | None = None,
+        incorporation_date=None,
+        tax_regime: str | None = None,
+        collaboration_start_date=None,
         phone_number: str | None = None,
         contact_name: str | None = None,
         email: str | None = None,
@@ -38,6 +45,11 @@ class ClientRepository:
             rc_number=rc_number,
             rc_city=rc_city,
             patente=patente,
+            legal_form=legal_form,
+            business_sector=business_sector,
+            incorporation_date=incorporation_date,
+            tax_regime=tax_regime,
+            collaboration_start_date=collaboration_start_date,
             phone_number=phone_number,
             contact_name=contact_name,
             email=email,
@@ -102,6 +114,104 @@ class ClientRepository:
 
         return list(self.session.scalars(statement).all())
 
+    def list_page(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 30,
+        responsible_user_id: int | None = None,
+        status: str = "active",
+        document_filter: str = "all",
+        search: str = "",
+    ) -> tuple[list[tuple[Client, int]], int]:
+        """Return a filtered client page and the total matching count."""
+
+        if page < 1:
+            raise ValueError("La page doit etre superieure ou egale a 1.")
+
+        if not 1 <= page_size <= 100:
+            raise ValueError("La taille de page doit etre comprise entre 1 et 100.")
+
+        if status not in {"active", "archived", "all"}:
+            raise ValueError("Statut de client invalide.")
+
+        if document_filter not in {"all", "with_documents", "without_documents"}:
+            raise ValueError("Filtre de documents invalide.")
+
+        conditions = []
+
+        if responsible_user_id is not None:
+            conditions.append(
+                Client.responsible_user_id == responsible_user_id
+            )
+
+        if status == "active":
+            conditions.append(Client.is_active.is_(True))
+        elif status == "archived":
+            conditions.append(Client.is_active.is_(False))
+
+        document_exists = (
+            select(Document.id)
+            .where(Document.client_id == Client.id)
+            .exists()
+        )
+
+        if document_filter == "with_documents":
+            conditions.append(document_exists)
+        elif document_filter == "without_documents":
+            conditions.append(~document_exists)
+
+        search = search.strip()
+        if search:
+            pattern = f"%{search}%"
+            conditions.append(
+                or_(
+                    Client.company_name.ilike(pattern),
+                    Client.internal_code.ilike(pattern),
+                    Client.ice.ilike(pattern),
+                    Client.if_number.ilike(pattern),
+                    Client.cnss_number.ilike(pattern),
+                    Client.rc_number.ilike(pattern),
+                    Client.patente.ilike(pattern),
+                    Client.address.ilike(pattern),
+                    Client.contact_name.ilike(pattern),
+                    Client.email.ilike(pattern),
+                    Client.phone_number.ilike(pattern),
+                    Client.responsible_user.has(
+                        User.full_name.ilike(pattern)
+                    ),
+                )
+            )
+
+        document_count = (
+            select(func.count(Document.id))
+            .where(Document.client_id == Client.id)
+            .correlate(Client)
+            .scalar_subquery()
+        )
+
+        total = self.session.scalar(
+            select(func.count(Client.id)).where(*conditions)
+        ) or 0
+
+        statement = (
+            select(Client, document_count.label("document_count"))
+            .options(joinedload(Client.responsible_user))
+            .where(*conditions)
+            .order_by(Client.company_name, Client.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        rows = self.session.execute(statement).all()
+
+        results = [
+            (client, int(count))
+            for client, count in rows
+        ]
+
+        return results, total
+
     def update(
         self,
         client: Client,
@@ -117,6 +227,11 @@ class ClientRepository:
             "rc_number",
             "rc_city",
             "patente",
+            "legal_form",
+            "business_sector",
+            "incorporation_date",
+            "tax_regime",
+            "collaboration_start_date",
             "phone_number",
             "contact_name",
             "email",

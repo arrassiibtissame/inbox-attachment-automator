@@ -36,6 +36,12 @@ class DocumentReceipt(Base):
         index=True,
     )
 
+    uploaded_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     source: Mapped[ReceiptSource] = mapped_column(
         SQLAlchemyEnum(ReceiptSource, name="receipt_source"),
         nullable=False,
@@ -78,3 +84,4 @@ class DocumentReceipt(Base):
 
     document = relationship("Document")
     file = relationship("File")
+    uploaded_by_user = relationship("User", foreign_keys=[uploaded_by_user_id])

@@ -80,6 +80,31 @@ class EmployeeService:
             role=UserRole.EMPLOYEE,
         )
 
+    def set_employee_active(
+        self,
+        current_user: User,
+        employee_id: int,
+        is_active: bool,
+    ) -> User:
+        """Activer ou désactiver un compte employé."""
+
+        self._ensure_admin(current_user)
+
+        employee = self.user_repository.get_by_id(employee_id)
+
+        if employee is None or employee.role != UserRole.EMPLOYEE:
+            raise ValueError("Employé introuvable.")
+
+        updated_employee = self.user_repository.set_active(
+            employee_id,
+            is_active,
+        )
+
+        if updated_employee is None:
+            raise ValueError("Impossible de modifier le compte employé.")
+
+        return updated_employee
+
     def update_employee(
         self,
         current_user: User,

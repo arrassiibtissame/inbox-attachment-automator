@@ -1,4 +1,4 @@
-﻿
+
 import customtkinter as ctk
 
 from frontend.ui.components.sidebar import Sidebar
@@ -116,12 +116,18 @@ class FidomekOneApp(ctk.CTk):
         if page_class is None:
             return None
 
-        if page_name == "settings":
+        if page_name == "dashboard":
+            page = page_class(
+                self.content,
+                current_user=self.current_user,
+                on_processing_click=self.open_processing_documents,
+            )
+        elif page_name == "settings":
             page = page_class(
                 self.content,
                 gmail_monitor=self.gmail_monitor,
             )
-        elif page_name == "clients" or page_name == "employees":
+        elif page_name in ("clients", "employees", "documents"):
             page = page_class(
                 self.content,
                 current_user=self.current_user,
@@ -164,6 +170,27 @@ class FidomekOneApp(ctk.CTk):
 
 
 
+    def open_processing_documents(self, category, document_ids):
+        """Ouvrir la page Documents sur une cat?gorie du tableau de bord."""
+
+        self.show_page("documents")
+
+        documents_page = self.page_instances.get("documents")
+        if documents_page is None:
+            return
+
+        titles = {
+            "unidentified": "Non identifi?s",
+            "awaiting_validation": "? valider",
+            "overdue": "En retard",
+            "claimed": "Pris en charge",
+        }
+
+        documents_page.apply_dashboard_filter(
+            document_ids,
+            titles.get(category, "Documents ? traiter"),
+        )
+
     def show_page(self, page_name):
         """Afficher une page, en la créant si nécessaire."""
 
@@ -185,6 +212,9 @@ class FidomekOneApp(ctk.CTk):
 
         if page is None:
             return
+
+        if page_name == 'documents':
+            page.clear_dashboard_filter()
 
         if self.current_page is not None:
             self.current_page.grid_remove()

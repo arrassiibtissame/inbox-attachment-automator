@@ -208,7 +208,72 @@ class EmployeesPage(ctk.CTkFrame):
             hover_color=colors.BORDER,
             text_color=colors.TEXT_PRIMARY,
             command=lambda item=employee: self.open_edit_employee_form(item),
-        ).grid(row=0, column=3, padx=(0, 16))
+        ).grid(row=0, column=3, padx=(0, 8))
+
+        ctk.CTkButton(
+            card,
+            text="Désactiver" if employee.is_active else "Réactiver",
+            width=100,
+            height=34,
+            fg_color=colors.ERROR if employee.is_active else colors.SUCCESS,
+            hover_color=(
+                colors.ERROR_LIGHT if employee.is_active
+                else colors.SUCCESS_LIGHT
+            ),
+            text_color="white",
+            command=lambda item=employee: self.toggle_employee_status(item),
+        ).grid(row=0, column=4, padx=(0, 16))
+
+    def toggle_employee_status(self, employee):
+        """Activer ou désactiver un compte après confirmation."""
+
+        if employee.is_active:
+            confirmed = messagebox.askyesno(
+                "Confirmer la désactivation",
+                (
+                    f"Voulez-vous désactiver le compte de "
+                    f"{employee.full_name} ?\\n\\n"
+                    "L'employé ne pourra plus se connecter. "
+                    "Son portefeuille client sera conserv?."
+                ),
+                parent=self,
+            )
+            if not confirmed:
+                return
+
+        session = SessionLocal()
+
+        try:
+            service = EmployeeService(session)
+            service.set_employee_active(
+                self.current_user,
+                employee.id,
+                not employee.is_active,
+            )
+            session.commit()
+
+        except (ValueError, PermissionError) as error:
+            session.rollback()
+            messagebox.showerror(
+                "Opération impossible",
+                str(error),
+                parent=self,
+            )
+            return
+
+        except Exception as error:
+            session.rollback()
+            messagebox.showerror(
+                "Erreur",
+                f"Impossible de modifier le compte :\\n{error}",
+                parent=self,
+            )
+            return
+
+        finally:
+            session.close()
+
+        self.load_employees()
 
     def open_add_employee_form(self):
         """Ouvrir le formulaire de création."""

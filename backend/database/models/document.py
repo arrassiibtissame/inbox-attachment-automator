@@ -43,6 +43,11 @@ class Document(Base):
         nullable=True,
     )
 
+    category: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
     document_number: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,

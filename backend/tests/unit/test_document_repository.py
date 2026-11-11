@@ -208,3 +208,54 @@ def test_classified_document_requires_client(db_session):
     db_session.rollback()
 
     assert repository.list_all() == []
+
+def test_list_by_client_filters_by_category(db_session):
+    repository = DocumentRepository(db_session)
+    user = create_responsible_user(db_session)
+    client = create_client(db_session, user)
+
+    legal_document = repository.create(
+        client_id=client.id,
+        document_type="STATUTS",
+        category="Juridique",
+    )
+    repository.create(
+        client_id=client.id,
+        document_type="FACTURE",
+        category="Fiscalit" + chr(233),
+    )
+    repository.create(
+        client_id=client.id,
+        document_type="AUTRE",
+    )
+
+    results = repository.list_by_client(
+        client.id,
+        category="Juridique",
+    )
+
+    assert len(results) == 1
+    assert results[0].id == legal_document.id
+    assert results[0].category == "Juridique"
+
+
+def test_create_document_without_category(db_session):
+    repository = DocumentRepository(db_session)
+
+    document = repository.create()
+
+    assert document.category is None
+
+
+def test_create_document_rejects_unknown_category(db_session):
+    repository = DocumentRepository(db_session)
+
+    with pytest.raises(ValueError, match="Cat"):
+        repository.create(category="Autre")
+
+
+def test_list_by_client_rejects_unknown_category(db_session):
+    repository = DocumentRepository(db_session)
+
+    with pytest.raises(ValueError, match="Cat"):
+        repository.list_by_client(1, category="Autre")

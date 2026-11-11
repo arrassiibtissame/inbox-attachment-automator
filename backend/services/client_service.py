@@ -26,20 +26,97 @@ class ClientService:
                 "Cette opération est réservée à l'administrateur."
             )
 
-    def list_clients(self, current_user: User) -> list[Client]:
-        """Return all clients for admins and own clients for employees."""
+    def list_clients(
+        self,
+        current_user: User,
+        *,
+        status: str = "active",
+    ) -> list[Client]:
+        """List clients within the user's portfolio and requested status."""
         self._ensure_active_user(current_user)
 
-        if current_user.role == UserRole.ADMIN:
-            return self.client_repository.list_all(active_only=True)
-
-        if current_user.role == UserRole.EMPLOYEE:
-            return self.client_repository.list_by_responsible_user(
-                current_user.id,
-                active_only=True,
+        if status not in {"active", "archived", "all"}:
+            raise ValueError(
+                "Statut invalide. Valeurs autoris?es : active, archived, all."
             )
 
-        raise PermissionError("Rôle utilisateur non autorisé.")
+        if current_user.role == UserRole.ADMIN:
+            clients = self.client_repository.list_all(active_only=False)
+        elif current_user.role == UserRole.EMPLOYEE:
+            clients = self.client_repository.list_by_responsible_user(
+                current_user.id,
+                active_only=False,
+            )
+        else:
+            raise PermissionError("R?le utilisateur non autoris?.")
+
+        if status == "active":
+            return [client for client in clients if client.is_active]
+        if status == "archived":
+            return [client for client in clients if not client.is_active]
+        return clients
+
+    def list_clients_page(
+        self,
+        current_user: User,
+        *,
+        page: int = 1,
+        page_size: int = 30,
+        status: str = "active",
+        document_filter: str = "all",
+        search: str = "",
+        responsible_user_id: int | None = None,
+    ) -> tuple[list[tuple[Client, int]], int]:
+        """List one secure page of clients within the user's permissions."""
+
+        self._ensure_active_user(current_user)
+
+        if status not in {"active", "archived", "all"}:
+            raise ValueError("Statut de client invalide.")
+
+        if document_filter not in {
+            "all",
+            "with_documents",
+            "without_documents",
+        }:
+            raise ValueError("Filtre de documents invalide.")
+
+        if current_user.role == UserRole.ADMIN:
+            if responsible_user_id is not None:
+                responsible_user = self.user_repository.get_by_id(
+                    responsible_user_id
+                )
+
+                if (
+                    responsible_user is None
+                    or responsible_user.role != UserRole.EMPLOYEE
+                ):
+                    raise ValueError("Employe responsable invalide.")
+
+            portfolio_user_id = responsible_user_id
+
+        elif current_user.role == UserRole.EMPLOYEE:
+            if (
+                responsible_user_id is not None
+                and responsible_user_id != current_user.id
+            ):
+                raise PermissionError(
+                    "Un employe ne peut pas consulter un autre portefeuille."
+                )
+
+            portfolio_user_id = current_user.id
+
+        else:
+            raise PermissionError("Role utilisateur non autorise.")
+
+        return self.client_repository.list_page(
+            page=page,
+            page_size=page_size,
+            responsible_user_id=portfolio_user_id,
+            status=status,
+            document_filter=document_filter,
+            search=search,
+        )
 
     def list_available_employees(
         self,
@@ -67,6 +144,11 @@ class ClientService:
         rc_number: str | None = None,
         rc_city: str | None = None,
         patente: str | None = None,
+        legal_form: str | None = None,
+        business_sector: str | None = None,
+        incorporation_date=None,
+        tax_regime: str | None = None,
+        collaboration_start_date=None,
         phone_number: str | None = None,
         contact_name: str | None = None,
         email: str | None = None,
@@ -120,6 +202,11 @@ class ClientService:
             rc_number=self._clean(rc_number),
             rc_city=self._clean(rc_city),
             patente=self._clean(patente),
+            legal_form=self._clean(legal_form),
+            business_sector=self._clean(business_sector),
+            incorporation_date=incorporation_date,
+            tax_regime=self._clean(tax_regime),
+            collaboration_start_date=collaboration_start_date,
             phone_number=self._clean(phone_number),
             contact_name=self._clean(contact_name),
             email=self._clean(email),
@@ -130,25 +217,30 @@ class ClientService:
         self,
         current_user: User,
         client_id: int,
+        *,
+        include_archived: bool = False,
     ) -> Client | None:
-        """Return a client only if the current user can access it."""
+        """Return a client only if the current user has portfolio access."""
         self._ensure_active_user(current_user)
 
         client = self.client_repository.get_by_id(client_id)
-
-        if client is None or not client.is_active:
+        if client is None:
             return None
 
         if current_user.role == UserRole.ADMIN:
-            return client
-
-        if (
+            pass
+        elif (
             current_user.role == UserRole.EMPLOYEE
             and client.responsible_user_id == current_user.id
         ):
-            return client
+            pass
+        else:
+            return None
 
-        return None
+        if not include_archived and not client.is_active:
+            return None
+
+        return client
 
     def update_client(
         self,
@@ -185,6 +277,9 @@ class ClientService:
             "rc_number",
             "rc_city",
             "patente",
+            "legal_form",
+            "business_sector",
+            "tax_regime",
             "phone_number",
             "contact_name",
             "email",
@@ -201,13 +296,28 @@ class ClientService:
         current_user: User,
         client_id: int,
     ) -> Client | None:
-        """Archive a client without deleting its data."""
+        """Archive an active client without deleting its data."""
         client = self.get_client(current_user, client_id)
-
         if client is None:
             return None
-
         return self.client_repository.set_active(client, False)
+
+    def restore_client(
+        self,
+        current_user: User,
+        client_id: int,
+    ) -> Client | None:
+        """Restore an archived client without changing its portfolio."""
+        client = self.get_client(
+            current_user,
+            client_id,
+            include_archived=True,
+        )
+        if client is None:
+            return None
+        if client.is_active:
+            return client
+        return self.client_repository.set_active(client, True)
 
     @staticmethod
     def _clean(value: str | None) -> str | None:

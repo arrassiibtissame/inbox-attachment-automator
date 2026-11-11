@@ -8,6 +8,8 @@ from backend.database.models import (
     DocumentStatus,
     File,
     ReceiptSource,
+    User,
+    UserRole,
 )
 from backend.database.repositories.document_receipt_repository import (
     DocumentReceiptRepository,
@@ -276,3 +278,42 @@ def test_receipt_requires_existing_file(db_session):
         )
 
     db_session.rollback()
+
+def test_manual_receipt_records_uploader(db_session):
+    repository = DocumentReceiptRepository(db_session)
+    document = create_document(db_session)
+    file = create_file(db_session)
+
+    user = User(
+        full_name="Employe Test",
+        email="employe.receipt@example.com",
+        password_hash="test-hash",
+        role=UserRole.EMPLOYEE,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    receipt = repository.create(
+        document_id=document.id,
+        file_id=file.id,
+        source=ReceiptSource.MANUAL,
+        uploaded_by_user_id=user.id,
+    )
+
+    assert receipt.uploaded_by_user_id == user.id
+    assert receipt.uploaded_by_user.id == user.id
+
+
+def test_synced_receipt_has_no_uploader_by_default(db_session):
+    repository = DocumentReceiptRepository(db_session)
+    document = create_document(db_session)
+    file = create_file(db_session)
+
+    receipt = repository.create(
+        document_id=document.id,
+        file_id=file.id,
+        source=ReceiptSource.GMAIL,
+    )
+
+    assert receipt.uploaded_by_user_id is None

@@ -269,3 +269,116 @@ def test_update_rejects_duplicate_email(db_session):
             employee.id,
             email="other@test.com",
         )
+
+
+def test_admin_can_deactivate_employee(db_session):
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin@test.com",
+        role=UserRole.ADMIN,
+    )
+    employee = create_user(
+        db_session,
+        name="Employé",
+        email="employee@test.com",
+    )
+
+    result = EmployeeService(db_session).set_employee_active(
+        admin, employee.id, False
+    )
+
+    assert result.is_active is False
+
+
+def test_admin_can_reactivate_employee(db_session):
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin@test.com",
+        role=UserRole.ADMIN,
+    )
+    employee = create_user(
+        db_session,
+        name="Employé",
+        email="employee@test.com",
+        is_active=False,
+    )
+
+    result = EmployeeService(db_session).set_employee_active(
+        admin, employee.id, True
+    )
+
+    assert result.is_active is True
+
+
+def test_employee_cannot_change_employee_status(db_session):
+    employee = create_user(
+        db_session,
+        name="Employé",
+        email="employee@test.com",
+    )
+    another_employee = create_user(
+        db_session,
+        name="Autre employé",
+        email="another@test.com",
+    )
+
+    with pytest.raises(PermissionError):
+        EmployeeService(db_session).set_employee_active(
+            employee, another_employee.id, False
+        )
+
+
+def test_inactive_admin_cannot_change_employee_status(db_session):
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin@test.com",
+        role=UserRole.ADMIN,
+        is_active=False,
+    )
+    employee = create_user(
+        db_session,
+        name="Employé",
+        email="employee@test.com",
+    )
+
+    with pytest.raises(PermissionError):
+        EmployeeService(db_session).set_employee_active(
+            admin, employee.id, False
+        )
+
+
+def test_admin_cannot_change_another_admin_status(db_session):
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin@test.com",
+        role=UserRole.ADMIN,
+    )
+    another_admin = create_user(
+        db_session,
+        name="Autre admin",
+        email="other-admin@test.com",
+        role=UserRole.ADMIN,
+    )
+
+    with pytest.raises(ValueError):
+        EmployeeService(db_session).set_employee_active(
+            admin, another_admin.id, False
+        )
+
+
+def test_set_active_rejects_unknown_employee(db_session):
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin@test.com",
+        role=UserRole.ADMIN,
+    )
+
+    with pytest.raises(ValueError):
+        EmployeeService(db_session).set_employee_active(
+            admin, 999999, False
+        )

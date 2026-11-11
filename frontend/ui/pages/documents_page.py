@@ -1,10 +1,11 @@
-﻿
+
 import customtkinter as ctk
 import os
 from pathlib import Path
 from tkinter import messagebox
 
-from backend.download_attachments import get_downloaded_documents
+from backend.database.connection import SessionLocal
+from backend.services.dashboard_service import DashboardService
 
 from frontend.ui.components.document_header import DocumentHeader
 from frontend.ui.components.document_statistics import DocumentStatistics
@@ -20,18 +21,21 @@ class DocumentsPage(ctk.CTkFrame):
     REFRESH_INTERVAL = 30000
     PAGE_SIZE = 20
 
-    def __init__(self, parent):
+    def __init__(self, parent, current_user):
         super().__init__(parent, fg_color="transparent")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(4, weight=1)
 
+        self.current_user = current_user
         self.documents = []
         self.search_query = ""
         self.selected_filter = "Tous"
         self.document_cards = []
         self._refresh_job = None
         self.current_page = 0
+        self.selected_dashboard_ids = None
+        self.selected_dashboard_title = None
 
         # En-tête
         self.header = DocumentHeader(self)
@@ -180,7 +184,45 @@ class DocumentsPage(ctk.CTkFrame):
         """Actualiser la liste depuis SQLite."""
 
         try:
-            self.documents = get_downloaded_documents()
+            with SessionLocal() as session:
+                rows = DashboardService(session).get_documents(
+                    self.current_user
+                )
+
+            self.documents = []
+            for row in rows:
+                received_at = row.get("date")
+                if received_at:
+                    date_text = received_at.strftime("%d/%m/%Y %H:%M")
+                else:
+                    date_text = "Date inconnue"
+
+                size_bytes = row.get("size_bytes") or 0
+                if size_bytes >= 1024 * 1024:
+                    size_text = f"{size_bytes / (1024 * 1024):.1f} MB"
+                elif size_bytes >= 1024:
+                    size_text = f"{size_bytes / 1024:.1f} KB"
+                else:
+                    size_text = f"{size_bytes} octets"
+
+                status = (
+                    "Classé"
+                    if row.get("status") == "CLASSIFIED"
+                    else "À vérifier"
+                )
+
+                self.documents.append({
+                    "document_id": row.get("document_id"),
+                    "file_id": row.get("file_id"),
+                    "name": row.get("name") or "Document sans nom",
+                    "client": row.get("client_name") or "Non attribué",
+                    "type": row.get("type") or "Autre",
+                    "date": date_text,
+                    "status": status,
+                    "path": row.get("path"),
+                    "size": size_text,
+                    "source": row.get("source"),
+                })
 
             self.update_statistics()
             self.display_documents()
@@ -231,8 +273,34 @@ class DocumentsPage(ctk.CTkFrame):
         self.current_page = 0
         self.display_documents()
 
+    def apply_dashboard_filter(self, document_ids, title):
+        """Afficher uniquement les documents d'une cat?gorie du tableau de bord."""
+
+        self.search_query = ""
+        self.toolbar.search_entry.delete(0, "end")
+        self.toolbar.set_filter("Tous")
+
+        self.selected_dashboard_ids = set(document_ids)
+        self.selected_dashboard_title = title
+        self.current_page = 0
+        self.display_documents()
+
+    def clear_dashboard_filter(self):
+        """Retirer le filtre temporaire du tableau de bord."""
+
+        self.selected_dashboard_ids = None
+        self.selected_dashboard_title = None
+        self.current_page = 0
+
     def get_filtered_documents(self):
         filtered = self.documents
+
+        if self.selected_dashboard_ids is not None:
+            filtered = [
+                document
+                for document in filtered
+                if document.get("document_id") in self.selected_dashboard_ids
+            ]
 
         if self.search_query:
             filtered = [
